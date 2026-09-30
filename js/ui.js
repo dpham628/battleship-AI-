@@ -10,6 +10,8 @@
   const SOUND_KEY = 'battleship-sound';
   const MODE_KEY = 'battleship-mode';
   const SALVO_GAP_MS = 260;
+  const DOUSE_DELAY_MS = 380;
+  const DOUSE_MS = 1700;
 
   const $ = (sel) => document.querySelector(sel);
   const coord = (r, c) => `${LETTERS[r]}${c + 1}`;
@@ -109,6 +111,7 @@
       boom: () => { noise(0.9, 'lowpass', 900, 0.9); tone('sine', 110, 35, 0.5, 0.7); },
       splash: () => noise(0.5, 'bandpass', 1500, 0.6, 0.7),
       sink: () => { noise(1.8, 'lowpass', 350, 0.9); tone('sine', 70, 25, 1.4, 0.6); },
+      hiss: () => noise(1.3, 'highpass', 2200, 0.35, 0.5),
       repair: () => { tone('sine', 660, 880, 0.12, 0.12); tone('sine', 880, 1320, 0.16, 0.12, 0.12); },
     };
   })();
@@ -145,7 +148,7 @@
 
   function buildBoard(el) {
     el.innerHTML = '';
-    const view = { el, cells: [], sprites: {} };
+    const view = { el, cells: [], sprites: {}, fires: {} };
     el.appendChild(div('label'));
     for (let c = 0; c < SIZE; c++) el.appendChild(Object.assign(div('label'), { textContent: c + 1 }));
     for (let r = 0; r < SIZE; r++) {
@@ -167,8 +170,75 @@
     view.reticle = div('reticle');
     view.reticle.hidden = true;
     view.fxLayer.appendChild(view.reticle);
-    el.append(div('water'), view.shipLayer, view.fxLayer);
+    view.fireLayer = div('fire-layer');
+    el.append(div('water'), view.shipLayer, view.fireLayer, view.fxLayer);
     return view;
+  }
+
+  const FIRE_HTML =
+    '<i class="glow"></i><i class="smoke"></i><i class="smoke"></i><i class="smoke"></i>' +
+    '<i class="flame f2"></i><i class="flame f3"></i><i class="flame f1"></i><i class="flame f4"></i>' +
+    '<i class="ember"></i><i class="ember"></i><i class="ember"></i>';
+
+  function syncFires(view, board) {
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const key = `${r},${c}`;
+        const cell = board.grid[r][c];
+        let el = view.fires[key];
+        if (!cell.hit) {
+          if (el) {
+            el.remove();
+            delete view.fires[key];
+          }
+          continue;
+        }
+        if (!el) {
+          el = div('fire');
+          el.innerHTML = FIRE_HTML;
+          el.style.setProperty('--fd', (Math.random() * -2).toFixed(2) + 's');
+          position(el, r, c);
+          view.fireLayer.appendChild(el);
+          view.fires[key] = el;
+        }
+        el.classList.toggle('smolder', cell.ship !== -1 && board.isSunk(cell.ship));
+      }
+    }
+  }
+
+  function douse(view, fromCells, r, c) {
+    const key = `${r},${c}`;
+    const fire = view.fires[key];
+    delete view.fires[key];
+    const src = fromCells && fromCells.find(([sr, sc]) => Math.abs(sr - r) + Math.abs(sc - c) === 1);
+    const delay = src ? DOUSE_DELAY_MS : 0;
+    if (src) {
+      const hose = div('fx-item hose');
+      position(hose, src[0], src[1]);
+      hose.style.setProperty('--ang', `${(Math.atan2(r - src[0], c - src[1]) * 180) / Math.PI}deg`);
+      hose.style.setProperty('--delay', `${delay}ms`);
+      hose.innerHTML = `<div class="hose-rot">${'<i class="drop"></i>'.repeat(12)}</div>`;
+      view.fxLayer.appendChild(hose);
+      setTimeout(() => hose.remove(), DOUSE_MS);
+    }
+    if (fire) {
+      fire.style.setProperty('--douse-delay', `${delay + 250}ms`);
+      fire.classList.add('dousing');
+      setTimeout(() => fire.remove(), DOUSE_MS);
+    }
+    const id = gameId;
+    setTimeout(() => {
+      if (id !== gameId) return;
+      const spray = div('fx-item spray');
+      position(spray, r, c);
+      spray.innerHTML =
+        Array.from({ length: 10 }, (_, i) => `<i class="sd" style="--a:${i * 36 + Math.random() * 20}deg"></i>`).join('') +
+        '<i class="steam"></i><i class="steam"></i><i class="steam"></i>';
+      view.fxLayer.appendChild(spray);
+      setTimeout(() => spray.remove(), 1600);
+      Sound.hiss();
+      setTimeout(Sound.repair, 700);
+    }, delay + 200);
   }
 
   function position(el, r, c) {
@@ -244,6 +314,8 @@
     for (const view of [player, enemy]) {
       Object.values(view.sprites).forEach((el) => el.remove());
       view.sprites = {};
+      view.fireLayer.innerHTML = '';
+      view.fires = {};
     }
     els.log.innerHTML = '';
     els.placement.classList.remove('hidden');
@@ -350,14 +422,14 @@
     });
   }
 
-  function endPlayerTurn() {
+  function endPlayerTurn(delay = AI_DELAY_MS) {
     const id = gameId;
     state.busy = true;
     setStatus('Enemy is taking aim…');
     render();
     setTimeout(() => {
       if (id === gameId) aiTurn();
-    }, AI_DELAY_MS);
+    }, delay);
   }
 
   function midSalvo() {
@@ -371,12 +443,11 @@
     state.pendingRefire = null;
     if (mv.repaired) {
       state.ai.onRepair(mv.repaired.r, mv.repaired.c);
-      spawnFx(player, mv.repaired.r, mv.repaired.c, 'repair-fx', 1000);
-      Sound.repair();
+      douse(player, mv.cells, mv.repaired.r, mv.repaired.c);
     }
     state.healerFlash = 'player';
     logMove('player', mv);
-    endPlayerTurn();
+    endPlayerTurn(mv.repaired ? DOUSE_MS : AI_DELAY_MS);
   }
 
   function playerTurnStatus() {
@@ -408,8 +479,7 @@
       const mv = state.enemy.moveHealer(dir);
       logMove('ai', mv);
       if (mv.repaired) {
-        spawnFx(enemy, mv.repaired.r, mv.repaired.c, 'repair-fx', 1000);
-        Sound.repair();
+        douse(enemy, null, mv.repaired.r, mv.repaired.c);
         state.lastPlayerShot = null;
       }
       return startPlayerTurn();
@@ -549,6 +619,7 @@
         el.className = cls.join(' ');
       }
     }
+    syncFires(player, board);
     setReticle(player, state.lastAiShot);
   }
 
@@ -575,6 +646,7 @@
         enemy.cells[r][c].className = cls.join(' ');
       }
     }
+    syncFires(enemy, board);
     setReticle(enemy, state.lastPlayerShot);
   }
 
