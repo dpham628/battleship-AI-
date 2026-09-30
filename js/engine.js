@@ -80,7 +80,7 @@
     }
 
     allSunk() {
-      return this.ships.every((s) => s.hits >= s.len);
+      return this.ships.every((s) => s.healer || s.hits >= s.len);
     }
 
     receiveShot(r, c) {

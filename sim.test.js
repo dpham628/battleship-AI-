@@ -153,6 +153,20 @@ function fixedBoard() {
   assert.ok(out.gameOver);
 }
 
+// classic: game ends when only the Healer is left
+{
+  const b = fixedBoard();
+  let out;
+  for (const i of [0, 1, 2, 3, 4]) for (const [r, c] of b.ships[i].cells) out = b.receiveShot(r, c);
+  assert.strictEqual(out.result, 'sunk');
+  assert.ok(out.gameOver, 'sinking the last warship ends the game even with the Healer afloat');
+  assert.strictEqual(b.isSunk(HEALER), false);
+  const c = fixedBoard();
+  c.receiveShot(9, 5);
+  c.receiveShot(9, 6); // sinking the Healer alone does not end the game
+  assert.ok(!c.allSunk());
+}
+
 function playSolo(difficulty) {
   const board = new Board();
   board.randomize();
