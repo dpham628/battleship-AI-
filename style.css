@@ -209,6 +209,7 @@ select:disabled { opacity: 0.5; }
   60% { transform: translate(-3px, -1px); } 80% { transform: translate(2px, 1px); }
 }
 @media (prefers-reduced-motion: reduce) {
+  .shark { display: none; }
   .water, .ship-svg, .smoke, .ember { animation: none !important; }
   .smoke, .ember { display: none; }
   .board.shake { animation: none; }
@@ -473,3 +474,22 @@ dialog .row { justify-content: center; }
 .switch-label::before { content: '\271A'; color: #e53935; margin-right: 6px; }
 .switch-state { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
 .healer-switch[aria-checked="true"] .switch-state { color: var(--ok); }
+
+/* Sharks: purely decorative, swim inside the water layer under ships and cells */
+.shark {
+  position: absolute; top: var(--y); left: 0; width: calc(var(--cell) * 2.6); aspect-ratio: 5 / 2;
+  pointer-events: none; animation: shark-right var(--dur, 12s) linear forwards;
+}
+.shark.leftward { animation-name: shark-left; }
+.shark svg { display: block; width: 100%; height: 100%; overflow: visible; animation: shark-weave 3.2s ease-in-out infinite alternate; }
+.shark.leftward svg { scale: -1 1; }
+.shark-shadow { fill: #041320; opacity: 0.6; filter: blur(0.6px); }
+.shark-tail { transform-box: fill-box; transform-origin: 100% 50%; /* hinge at the body */ animation: shark-tail 0.7s ease-in-out infinite alternate; }
+.shark-wake { fill: none; stroke: #e6f4ff; stroke-opacity: 0.5; stroke-width: 1.6; stroke-linecap: round; }
+.shark-foam { fill: #e6f4ff; opacity: 0.45; animation: shark-foam 0.9s ease-in-out infinite alternate; }
+.shark-fin { fill: #3d4c58; stroke: #b7c4ce; stroke-width: 1; stroke-linejoin: round; }
+@keyframes shark-right { from { left: -25%; } to { left: 110%; } }
+@keyframes shark-left { from { left: 110%; } to { left: -25%; } }
+@keyframes shark-weave { from { translate: 0 -12%; rotate: -3deg; } to { translate: 0 12%; rotate: 3deg; } }
+@keyframes shark-tail { from { rotate: -14deg; } to { rotate: 14deg; } }
+@keyframes shark-foam { from { opacity: 0.25; } to { opacity: 0.55; } }

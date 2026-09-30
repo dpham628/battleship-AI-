@@ -175,8 +175,41 @@
     view.reticle.hidden = true;
     view.fxLayer.appendChild(view.reticle);
     view.fireLayer = div('fire-layer');
-    el.append(div('water'), view.shipLayer, view.fireLayer, view.fxLayer);
+    view.water = div('water');
+    el.append(view.water, view.shipLayer, view.fireLayer, view.fxLayer);
     return view;
+  }
+
+  const SHARK_SVG =
+    '<svg viewBox="0 0 100 40" aria-hidden="true">' +
+    '<g class="shark-shadow">' +
+    '<path d="M99 20 Q90 13.5 74 12.5 Q50 12 30 16.5 L22 18 L22 22 L30 23.5 Q50 28 74 27.5 Q90 26.5 99 20Z"/>' +
+    '<path d="M70 14 Q62 5 52 1.5 Q57 9 60 14.5Z M70 26 Q62 35 52 38.5 Q57 31 60 25.5Z"/>' +
+    '<path class="shark-tail" d="M24 18 Q14 12 4 3 Q12 14 11 20 Q12 26 4 37 Q14 28 24 22Z"/>' +
+    '</g>' +
+    '<path class="shark-wake" d="M66 20 Q40 12 12 4 M66 20 Q40 28 12 36"/>' +
+    '<ellipse class="shark-foam" cx="61" cy="20" rx="11" ry="3.6"/>' +
+    '<path class="shark-fin" d="M69 21 L52 21 Q49 13 43 5 Q58 10 69 21Z"/>' +
+    '</svg>';
+
+  function spawnShark(view) {
+    if (!view?.water || view.water.querySelector('.shark')) return;
+    const shark = div('shark');
+    shark.innerHTML = SHARK_SVG;
+    if (Math.random() < 0.5) shark.classList.add('leftward');
+    shark.style.setProperty('--y', `${(5 + Math.random() * 80).toFixed(1)}%`);
+    shark.style.setProperty('--dur', `${(9 + Math.random() * 6).toFixed(1)}s`);
+    shark.addEventListener('animationend', (e) => e.target === shark && shark.remove());
+    view.water.appendChild(shark);
+  }
+
+  function scheduleSharks() {
+    setTimeout(() => {
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !document.hidden) {
+        spawnShark(Math.random() < 0.5 ? player : enemy);
+      }
+      scheduleSharks();
+    }, 6000 + Math.random() * 10000);
   }
 
   const FIRE_HTML =
@@ -871,4 +904,5 @@
 
   renderSoundToggle();
   newGame();
+  scheduleSharks();
 })();
