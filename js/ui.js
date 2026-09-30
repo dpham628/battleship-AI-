@@ -252,6 +252,7 @@
   }
 
   function rotate() {
+    if (state.phase === 'battle') return moveHealer('rotate');
     if (state.phase !== 'placement') return;
     state.horizontal = !state.horizontal;
     render();
@@ -402,7 +403,8 @@
 
   function logMove(who, mv) {
     const own = who === 'player' ? 'your' : 'its';
-    let text = who === 'player' ? `You moved your Healer ${mv.dir}` : 'AI moved its Healer';
+    const verb = mv.dir === 'rotate' ? 'rotated' : 'moved';
+    let text = who === 'player' ? `You ${verb} your Healer${mv.dir === 'rotate' ? '' : ` ${mv.dir}`}` : `AI ${verb} its Healer`;
     text += mv.repaired ? ` and put out the fire on ${own} ${mv.repaired.name} at ${coord(mv.repaired.r, mv.repaired.c)}!` : '.';
     addLog(`${who} move${mv.repaired ? ' repair' : ''}`, text);
   }

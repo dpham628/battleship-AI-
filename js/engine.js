@@ -12,6 +12,7 @@
   ];
   const HEALER = FLEET.findIndex((s) => s.healer);
   const HEALER_MOVES = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
+  const HEALER_ACTIONS = [...Object.keys(HEALER_MOVES), 'rotate'];
 
   const DIRS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
   const inBounds = (r, c) => r >= 0 && r < SIZE && c >= 0 && c < SIZE;
@@ -101,8 +102,25 @@
       return !!h.cells && h.hits === 0;
     }
 
-    healerCellsAfter(dr, dc) {
-      return this.ships[HEALER].cells.map(([r, c]) => [r + dr, c + dc]);
+    healerCellsFor(cells, action) {
+      if (action !== 'rotate') {
+        const [dr, dc] = HEALER_MOVES[action];
+        return cells.map(([r, c]) => [r + dr, c + dc]);
+      }
+      const [[r0, c0], [r1, c1]] = cells;
+      const horizontal = r0 === r1;
+      const pivots = [[r0, c0], [r1, c1]];
+      for (const [pr, pc] of pivots) {
+        const options = horizontal
+          ? [[[pr, pc], [pr + 1, pc]], [[pr - 1, pc], [pr, pc]]]
+          : [[[pr, pc], [pr, pc + 1]], [[pr, pc - 1], [pr, pc]]];
+        for (const opt of options) if (this.canHealerOccupy(opt)) return opt;
+      }
+      return [[r0, c0], horizontal ? [r0 + 1, c0] : [r0, c0 + 1]];
+    }
+
+    healerCellsAfter(action) {
+      return this.healerCellsFor(this.ships[HEALER].cells, action);
     }
 
     canHealerOccupy(cells) {
@@ -115,7 +133,7 @@
 
     healerMoves() {
       if (!this.healerMobile()) return [];
-      return Object.keys(HEALER_MOVES).filter((dir) => this.canHealerOccupy(this.healerCellsAfter(...HEALER_MOVES[dir])));
+      return HEALER_ACTIONS.filter((dir) => this.canHealerOccupy(this.healerCellsAfter(dir)));
     }
 
     fireNextTo(cells) {
@@ -134,10 +152,11 @@
     moveHealer(dir) {
       if (!this.healerMoves().includes(dir)) return null;
       const healer = this.ships[HEALER];
-      const cells = this.healerCellsAfter(...HEALER_MOVES[dir]);
+      const cells = this.healerCellsAfter(dir);
       healer.cells.forEach(([r, c]) => (this.grid[r][c].ship = -1));
       cells.forEach(([r, c]) => (this.grid[r][c].ship = HEALER));
       healer.cells = cells;
+      healer.horizontal = cells[0][0] === cells[1][0];
 
       let repaired = null;
       const fire = this.fireNextTo(cells);
@@ -155,23 +174,22 @@
 
     planHealerMove(maxSteps) {
       if (!this.healerMobile() || maxSteps < 1) return null;
+      const keyOf = (cells) => cells.map((p) => p.join(',')).join('|');
       const start = this.ships[HEALER].cells;
-      const seen = new Set(['0,0']);
-      let frontier = [{ dr: 0, dc: 0, first: null }];
+      const seen = new Set([keyOf(start)]);
+      let frontier = [{ cells: start, first: null }];
       for (let step = 1; step <= maxSteps; step++) {
         const next = [];
         for (const node of frontier) {
-          for (const dir of Object.keys(HEALER_MOVES)) {
-            const dr = node.dr + HEALER_MOVES[dir][0];
-            const dc = node.dc + HEALER_MOVES[dir][1];
-            const key = `${dr},${dc}`;
+          for (const dir of HEALER_ACTIONS) {
+            const cells = this.healerCellsFor(node.cells, dir);
+            const key = keyOf(cells);
             if (seen.has(key)) continue;
-            const cells = start.map(([r, c]) => [r + dr, c + dc]);
             if (!this.canHealerOccupy(cells)) continue;
             seen.add(key);
             const first = node.first || dir;
             if (this.fireNextTo(cells)) return first;
-            next.push({ dr, dc, first });
+            next.push({ cells, first });
           }
         }
         frontier = next;
@@ -362,7 +380,7 @@
     }
   }
 
-  const api = { SIZE, FLEET, HEALER, HEALER_MOVES, Board, AI, shipCells, inBounds };
+  const api = { SIZE, FLEET, HEALER, HEALER_MOVES, HEALER_ACTIONS, Board, AI, shipCells, inBounds };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Battleship = api;
 })(typeof window !== 'undefined' ? window : globalThis);

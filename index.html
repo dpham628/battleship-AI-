@@ -42,9 +42,9 @@
         <p class="hint">Pick a ship, then click your board. Press <kbd>R</kbd> or right-click to rotate. Click a placed ship to move it.</p>
         <details class="rules">
           <summary>The Healer ship</summary>
-          <p>Each side has a 2-cell <b class="healer-text">Healer</b>. On your turn you either fire <em>or</em> move the Healer one square. It can't rotate or pass through ships or hits, but it <em>can</em> move over the enemy's missed shots.</p>
+          <p>Each side has a 2-cell <b class="healer-text">Healer</b>. On your turn you either fire <em>or</em> move the Healer one square <em>or</em> rotate it (it pivots on one of its cells). It can't pass through ships or hits, but it <em>can</em> move over the enemy's missed shots.</p>
           <p>Because of that, you may fire again at a cell you missed (click it twice to confirm) — the enemy Healer might be there now.</p>
-          <p>If the Healer ends its move touching a burning (hit) cell of a ship that isn't sunk, it puts out that fire: the hit is repaired and the enemy can target it again. Repairs are announced.</p>
+          <p>If the Healer ends its move or rotation touching a burning (hit) cell of a ship that isn't sunk, it puts out that fire: the hit is repaired and the enemy can target it again. Repairs are announced.</p>
           <p>One hit immobilizes the Healer for the rest of the game; two hits sink it. Sink all six ships to win.</p>
         </details>
         <div id="dock" class="dock"></div>
@@ -61,11 +61,12 @@
           <div>
             <h3>Your Healer</h3>
             <p id="healer-status" class="hint"></p>
-            <p class="hint">Moving uses your turn. Arrow keys work too.</p>
+            <p class="hint">Moving or rotating uses your turn. Arrow keys and <kbd>R</kbd> work too.</p>
           </div>
           <div class="dpad">
             <button class="btn ghost" data-dir="up" aria-label="Move healer up">&#9650;</button>
             <button class="btn ghost" data-dir="left" aria-label="Move healer left">&#9664;</button>
+            <button class="btn ghost" data-dir="rotate" aria-label="Rotate healer" title="Rotate (R)">&#10227;</button>
             <button class="btn ghost" data-dir="right" aria-label="Move healer right">&#9654;</button>
             <button class="btn ghost" data-dir="down" aria-label="Move healer down">&#9660;</button>
           </div>

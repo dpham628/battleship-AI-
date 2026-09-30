@@ -154,6 +154,7 @@ select:disabled { opacity: 0.5; }
   animation: bob 4s ease-in-out infinite; animation-delay: var(--bob);
 }
 .in-battle .ship-sprite { transition: left 0.45s ease-in-out, top 0.45s ease-in-out; }
+.in-battle .ship-inner { transition: transform 0.45s ease-in-out; }
 .ship-sprite.selected .ship-svg { filter: drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 2px var(--accent)) brightness(1.08); }
 .ship-sprite.flash .ship-svg { filter: drop-shadow(0 0 6px var(--ok)) drop-shadow(0 0 2px var(--ok)); }
 .ship-sprite.ghost { opacity: 0.75; }
@@ -294,5 +295,6 @@ dialog .row { justify-content: center; }
 .dpad [data-dir="up"] { grid-column: 2; grid-row: 1; }
 .dpad [data-dir="left"] { grid-column: 1; grid-row: 2; }
 .dpad [data-dir="right"] { grid-column: 3; grid-row: 2; }
+.dpad [data-dir="rotate"] { grid-column: 2; grid-row: 2; font-size: 1.05rem; }
 .dpad [data-dir="down"] { grid-column: 2; grid-row: 3; }
 #healer-status b { color: var(--text); }

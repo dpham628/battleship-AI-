@@ -16,7 +16,7 @@ function fixedBoard() {
 {
   const b = fixedBoard();
   assert.strictEqual(b.receiveShot(8, 1).result, 'hit'); // Destroyer I2
-  assert.deepStrictEqual(b.healerMoves().sort(), ['left', 'right', 'up'].sort());
+  assert.deepStrictEqual(b.healerMoves().sort(), ['left', 'right', 'rotate', 'up']);
   assert.strictEqual(b.moveHealer('left').repaired, null); // J5-J6
   assert.strictEqual(b.moveHealer('left').repaired, null); // J4-J5
   const mv = b.moveHealer('left'); // J3-J4 touches I3? no: I2 is at (8,1); J3 is (9,2) -> not adjacent
@@ -50,6 +50,32 @@ function fixedBoard() {
   b.receiveShot(8, 0); // Destroyer I1 hit
   b.place(HEALER, 9, 0, true); // J1-J2 (place bypasses movement rules)
   assert.ok(!b.healerMoves().includes('up'));
+}
+
+// healer rotation: pivots, repairs, blocked by ships
+{
+  const b = fixedBoard(); // Healer J6-J7
+  assert.ok(b.healerMoves().includes('rotate'));
+  const r1 = b.moveHealer('rotate');
+  assert.deepStrictEqual(r1.cells, [[8, 5], [9, 5]]);
+  assert.strictEqual(b.ships[HEALER].horizontal, false);
+  assert.strictEqual(b.grid[9][6].ship, -1);
+  const r2 = b.moveHealer('rotate');
+  assert.deepStrictEqual(r2.cells, [[8, 5], [8, 6]]);
+  assert.strictEqual(b.ships[HEALER].horizontal, true);
+
+  const c = fixedBoard();
+  c.receiveShot(8, 1); // Destroyer I2
+  c.place(HEALER, 9, 2, true); // J3-J4
+  const rep = c.moveHealer('rotate'); // -> I3-J3, I3 touches I2
+  assert.deepStrictEqual(rep.cells, [[8, 2], [9, 2]]);
+  assert.deepStrictEqual([rep.repaired.r, rep.repaired.c], [8, 1]);
+
+  const d = fixedBoard();
+  d.place(HEALER, 9, 0, true); // J1-J2 under the Destroyer
+  assert.ok(!d.healerMoves().includes('rotate'));
+  d.receiveShot(9, 0);
+  assert.strictEqual(d.moveHealer('rotate'), null);
 }
 
 // AI hunts old misses next to a repaired cell
