@@ -413,7 +413,7 @@
     const actor = who === 'player' ? 'You' : 'AI';
     let text = `${actor} fired at ${coord(r, c)} — `;
     if (out.result === 'miss') text += 'miss.';
-    else if (out.result === 'hit' && out.healer) text += `hit ${who === 'player' ? 'their' : 'your'} Healer — it's immobilized!`;
+    else if (out.result === 'hit' && out.healer) text += `hit ${who === 'player' ? 'their' : 'your'} Healer — it can no longer move or repair!`;
     else if (out.result === 'hit') text += 'hit!';
     else text += who === 'player' ? `sunk their ${out.name}!` : `sunk your ${out.name}!`;
     addLog(`${who} ${out.result}`, text);
@@ -542,7 +542,7 @@
   function renderFleet(el, board, showHits) {
     el.innerHTML = board.ships
       .map((s, i) => {
-        const label = s.healer && s.hits > 0 && !board.isSunk(i) ? `${s.name} (stuck)` : s.name;
+        const label = s.healer && s.hits > 0 && !board.isSunk(i) ? `${s.name} (disabled)` : s.name;
         return `<li class="${board.isSunk(i) ? 'sunk' : ''}"><span>${label}</span>${pips(s, showHits || (s.healer && s.hits > 0))}</li>`;
       })
       .join('');
@@ -571,7 +571,7 @@
     els.dpad.forEach((btn) => (btn.disabled = !moves.includes(btn.dataset.dir)));
     let status;
     if (state.player.isSunk(HEALER)) status = 'Sunk.';
-    else if (healer.hits > 0) status = 'Hit and immobilized for the rest of the game.';
+    else if (healer.hits > 0) status = 'Hit — immobilized and can no longer repair for the rest of the game.';
     else {
       const fire = state.player.fireNextTo(healer.cells);
       status = fire

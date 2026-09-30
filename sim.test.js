@@ -76,6 +76,11 @@ function fixedBoard() {
   assert.ok(!d.healerMoves().includes('rotate'));
   d.receiveShot(9, 0);
   assert.strictEqual(d.moveHealer('rotate'), null);
+  // a hit Healer next to a fire never repairs it
+  d.receiveShot(8, 1); // Destroyer I2, adjacent to the disabled Healer at J2
+  for (const dir of ['up', 'down', 'left', 'right', 'rotate']) assert.strictEqual(d.moveHealer(dir), null);
+  assert.strictEqual(d.grid[8][1].hit, true);
+  assert.strictEqual(d.ships[4].hits, 1);
 }
 
 // AI hunts old misses next to a repaired cell
