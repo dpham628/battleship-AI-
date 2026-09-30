@@ -27,7 +27,7 @@
     </div>
   </header>
 
-  <p id="status" class="status" aria-live="polite"></p>
+  <p class="status-row"><span id="mode-badge" class="mode-badge hidden">Salvo</span><span id="status" class="status" aria-live="polite"></span></p>
 
   <main class="layout">
     <section class="panel" id="player-panel">
@@ -38,6 +38,18 @@
 
     <section class="side">
       <div id="placement" class="card">
+        <div class="mode-picker" role="radiogroup" aria-label="Game mode">
+          <h3>Game mode</h3>
+          <div class="mode-options">
+            <button id="mode-classic" class="mode-btn" role="radio" data-mode="classic">
+              <span class="mode-name">Classic</span><span class="mode-desc">1 shot per turn</span>
+            </button>
+            <button id="mode-salvo" class="mode-btn salvo" role="radio" data-mode="salvo">
+              <span class="mode-name">Salvo</span><span class="mode-desc">1 shot per surviving ship</span>
+            </button>
+          </div>
+          <p class="hint">In Salvo, each ship still afloat (not counting the Healer) gives you a shot per turn, so sinking ships cuts firepower.</p>
+        </div>
         <h3>Deploy your fleet</h3>
         <p class="hint">Pick a ship, then click your board. Press <kbd>R</kbd> or right-click to rotate. Click a placed ship to move it.</p>
         <details class="rules">
@@ -57,6 +69,11 @@
       </div>
 
       <div id="battle" class="card hidden">
+        <div id="salvo-meter" class="salvo-meter hidden">
+          <h3>Salvo</h3>
+          <div class="shells" id="salvo-shells"></div>
+          <p class="hint" id="salvo-text"></p>
+        </div>
         <div class="healer-controls">
           <div>
             <h3>Your Healer</h3>

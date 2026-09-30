@@ -122,6 +122,22 @@ function fixedBoard() {
   assert.strictEqual(b.ships[3].hits, 0);
 }
 
+// salvo shot count ignores the Healer and drops as ships sink
+{
+  const b = fixedBoard();
+  assert.strictEqual(b.salvoShots(), 5);
+  b.receiveShot(9, 5);
+  b.receiveShot(9, 6); // sink the Healer
+  assert.strictEqual(b.salvoShots(), 5);
+  b.receiveShot(8, 0);
+  b.receiveShot(8, 1); // sink the Destroyer
+  assert.strictEqual(b.salvoShots(), 4);
+  // only the Healer left: still one shot per turn
+  const c = fixedBoard();
+  for (const i of [0, 1, 2, 3, 4]) c.ships[i].cells.forEach(([r, cc]) => c.receiveShot(r, cc));
+  assert.strictEqual(c.salvoShots(), 1);
+}
+
 function playSolo(difficulty) {
   const board = new Board();
   board.randomize();
@@ -137,7 +153,7 @@ function playSolo(difficulty) {
 }
 
 // AI vs AI with healers, to make sure games terminate
-function playDuel(dA, dB) {
+function playDuel(dA, dB, salvo = false) {
   const boards = [new Board(), new Board()];
   boards.forEach((b) => b.randomize());
   const ais = [new AI(dA), new AI(dB)];
@@ -150,11 +166,14 @@ function playDuel(dA, dB) {
       if (mv.repaired) ais[them].onRepair(mv.repaired.r, mv.repaired.c);
       continue;
     }
-    const [r, c] = ais[me].nextShot();
-    const out = boards[them].receiveShot(r, c);
-    assert.notStrictEqual(out.result, 'repeat');
-    ais[me].record(r, c, out);
-    if (out.gameOver) return { winner: me, turns: turn + 1 };
+    const shots = salvo ? boards[me].salvoShots() : 1;
+    for (let k = 0; k < shots; k++) {
+      const [r, c] = ais[me].nextShot();
+      const out = boards[them].receiveShot(r, c);
+      assert.notStrictEqual(out.result, 'repeat');
+      ais[me].record(r, c, out);
+      if (out.gameOver) return { winner: me, turns: turn + 1 };
+    }
   }
   return null;
 }
@@ -165,13 +184,13 @@ for (const d of ['easy', 'normal', 'hard']) {
   const avg = results.reduce((a, b) => a + b, 0) / GAMES;
   console.log(`solo  ${d.padEnd(6)} avg ${avg.toFixed(1)} shots (min ${Math.min(...results)}, max ${Math.max(...results)})`);
 }
-for (const [a, b] of [['hard', 'hard'], ['hard', 'easy'], ['normal', 'easy']]) {
-  const results = Array.from({ length: GAMES }, () => playDuel(a, b));
+for (const [a, b, salvo] of [['hard', 'hard'], ['hard', 'easy'], ['normal', 'easy'], ['hard', 'hard', true], ['hard', 'easy', true]]) {
+  const results = Array.from({ length: GAMES }, () => playDuel(a, b, salvo));
   const stalls = results.filter((r) => !r).length;
   const done = results.filter(Boolean);
   const winsA = done.filter((r) => r.winner === 0).length;
   const avg = done.reduce((s, r) => s + r.turns, 0) / done.length;
-  console.log(`duel  ${a} vs ${b}: ${a} wins ${winsA}/${done.length}, stalls ${stalls}, avg turns ${avg.toFixed(1)}, max ${Math.max(...done.map((r) => r.turns))}`);
+  console.log(`duel${salvo ? ' salvo' : ''}  ${a} vs ${b}: ${a} wins ${winsA}/${done.length}, stalls ${stalls}, avg turns ${avg.toFixed(1)}, max ${Math.max(...done.map((r) => r.turns))}`);
   assert.strictEqual(stalls, 0);
 }
 console.log('all tests passed');

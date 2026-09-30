@@ -97,6 +97,11 @@
       return { result: 'hit', healer: ship.healer };
     }
 
+    salvoShots() {
+      const afloat = this.ships.filter((s, i) => !s.healer && s.cells && !this.isSunk(i)).length;
+      return Math.max(1, afloat);
+    }
+
     healerMobile() {
       const h = this.ships[HEALER];
       return !!h.cells && h.hits === 0;

@@ -8,6 +8,8 @@
   const SHELL_MS = 380;
   const RECORD_KEY = 'battleship-record';
   const SOUND_KEY = 'battleship-sound';
+  const MODE_KEY = 'battleship-mode';
+  const SALVO_GAP_MS = 260;
 
   const $ = (sel) => document.querySelector(sel);
   const coord = (r, c) => `${LETTERS[r]}${c + 1}`;
@@ -18,6 +20,11 @@
     wins: $('#wins'),
     losses: $('#losses'),
     soundToggle: $('#sound-toggle'),
+    modeButtons: document.querySelectorAll('.mode-btn'),
+    modeBadge: $('#mode-badge'),
+    salvoMeter: $('#salvo-meter'),
+    salvoShells: $('#salvo-shells'),
+    salvoText: $('#salvo-text'),
     playerPanel: $('#player-panel'),
     enemyPanel: $('#enemy-panel'),
     playerFleet: $('#player-fleet'),
@@ -105,6 +112,8 @@
 
   let state;
   let gameId = 0;
+  let mode = localStorage.getItem(MODE_KEY) === 'salvo' ? 'salvo' : 'classic';
+  const isSalvo = () => mode === 'salvo';
   let player;
   let enemy;
 
@@ -223,6 +232,8 @@
       lastPlayerShot: null,
       healerFlash: null,
       pendingRefire: null,
+      shotsTotal: 1,
+      shotsLeft: 1,
       stats: { pShots: 0, pHits: 0, aShots: 0, aHits: 0 },
     };
     state.enemy.randomize();
@@ -313,7 +324,7 @@
     }
     state.pendingRefire = null;
     state.busy = true;
-    setStatus(`Firing at ${coord(r, c)}…`);
+    setStatus(isSalvo() ? `Firing shot ${state.shotsTotal - state.shotsLeft + 1} of ${state.shotsTotal} at ${coord(r, c)}…` : `Firing at ${coord(r, c)}…`);
     render();
 
     launch(enemy, r, c, () => {
@@ -324,6 +335,12 @@
       impact(enemy, r, c, out);
       logShot('player', r, c, out);
       if (out.gameOver) return endGame(true);
+      state.shotsLeft--;
+      if (state.shotsLeft > 0) {
+        state.busy = false;
+        setStatus(playerTurnStatus(), 'turn-player');
+        return render();
+      }
       endPlayerTurn();
     });
   }
@@ -338,8 +355,12 @@
     }, AI_DELAY_MS);
   }
 
+  function midSalvo() {
+    return state.shotsLeft < state.shotsTotal;
+  }
+
   function moveHealer(dir) {
-    if (state.phase !== 'battle' || state.busy) return;
+    if (state.phase !== 'battle' || state.busy || midSalvo()) return;
     const mv = state.player.moveHealer(dir);
     if (!mv) return;
     state.pendingRefire = null;
@@ -354,6 +375,13 @@
   }
 
   function playerTurnStatus() {
+    if (isSalvo()) {
+      const left = `${state.shotsLeft} of ${state.shotsTotal} shot${state.shotsTotal === 1 ? '' : 's'} left`;
+      if (midSalvo()) return `Salvo — ${left}. Keep firing!`;
+      return state.player.healerMobile()
+        ? `Your salvo — ${left}. Fire on Enemy Waters, or move your Healer instead.`
+        : `Your salvo — ${left}. Fire on Enemy Waters.`;
+    }
     return state.player.healerMobile()
       ? 'Your turn — fire on Enemy Waters or move your Healer.'
       : 'Your turn — fire on Enemy Waters.';
@@ -361,6 +389,8 @@
 
   function startPlayerTurn() {
     state.busy = false;
+    state.shotsTotal = isSalvo() ? state.player.salvoShots() : 1;
+    state.shotsLeft = state.shotsTotal;
     setStatus(playerTurnStatus(), 'turn-player');
     render();
   }
@@ -379,18 +409,29 @@
       }
       return startPlayerTurn();
     }
-    const [r, c] = state.ai.nextShot();
-    launch(player, r, c, () => {
-      const out = state.player.receiveShot(r, c);
-      state.ai.record(r, c, out);
-      state.stats.aShots++;
-      if (out.result !== 'miss') state.stats.aHits++;
-      state.lastAiShot = [r, c];
-      impact(player, r, c, out);
-      logShot('ai', r, c, out);
-      if (out.gameOver) return endGame(false);
-      startPlayerTurn();
-    });
+    const total = isSalvo() ? state.enemy.salvoShots() : 1;
+    const id = gameId;
+    const fireOne = (k) => {
+      if (id !== gameId) return;
+      if (total > 1) setStatus(`Enemy salvo — shot ${k + 1} of ${total}…`);
+      const [r, c] = state.ai.nextShot();
+      launch(player, r, c, () => {
+        const out = state.player.receiveShot(r, c);
+        state.ai.record(r, c, out);
+        state.stats.aShots++;
+        if (out.result !== 'miss') state.stats.aHits++;
+        state.lastAiShot = [r, c];
+        impact(player, r, c, out);
+        logShot('ai', r, c, out);
+        if (out.gameOver) return endGame(false);
+        if (k + 1 < total) {
+          renderPlayerBoard();
+          return setTimeout(() => fireOne(k + 1), SALVO_GAP_MS);
+        }
+        startPlayerTurn();
+      });
+    };
+    fireOne(0);
   }
 
   function addLog(cls, text) {
@@ -426,6 +467,7 @@
     state.hover = null;
     state.ai.difficulty = els.difficulty.value;
     els.difficulty.disabled = true;
+    renderMode();
     els.placement.classList.add('hidden');
     els.battle.classList.remove('hidden');
     startPlayerTurn();
@@ -444,6 +486,7 @@
     els.dialogText.textContent = playerWon
       ? `You sank the enemy fleet in ${pShots} shots (${acc}% accuracy).`
       : `The AI (${els.difficulty.value}) sank your fleet in ${state.stats.aShots} shots.`;
+    if (isSalvo()) els.dialogText.textContent += ' (Salvo mode)';
     setStatus(playerWon ? 'You win! The enemy fleet is destroyed.' : 'You lose. Your fleet has been sunk.', playerWon ? 'win' : 'lose');
     els.difficulty.disabled = false;
     render();
@@ -567,11 +610,12 @@
 
   function renderHealerControls() {
     const healer = state.player.ships[HEALER];
-    const moves = state.phase === 'battle' && !state.busy ? state.player.healerMoves() : [];
+    const moves = state.phase === 'battle' && !state.busy && !midSalvo() ? state.player.healerMoves() : [];
     els.dpad.forEach((btn) => (btn.disabled = !moves.includes(btn.dataset.dir)));
     let status;
     if (state.player.isSunk(HEALER)) status = 'Sunk.';
     else if (healer.hits > 0) status = 'Hit — immobilized and can no longer repair for the rest of the game.';
+    else if (state.phase === 'battle' && midSalvo()) status = 'Mobile, but you already started firing this turn.';
     else {
       const fire = state.player.fireNextTo(healer.cells);
       status = fire
@@ -579,6 +623,29 @@
         : 'Mobile. Move next to a burning ship to repair it.';
     }
     els.healerStatus.textContent = status;
+  }
+
+  function renderSalvo() {
+    const show = isSalvo() && state.phase !== 'placement';
+    els.salvoMeter.classList.toggle('hidden', !show);
+    if (!show) return;
+    const yourTurn = state.phase === 'battle' && (!state.busy || midSalvo());
+    const total = yourTurn ? state.shotsTotal : state.player.salvoShots();
+    const left = yourTurn ? state.shotsLeft : total;
+    els.salvoShells.innerHTML = Array.from({ length: total }, (_, i) => `<span class="shell${i < left ? '' : ' spent'}"></span>`).join('');
+    const enemyShots = state.enemy.salvoShots();
+    els.salvoText.textContent = yourTurn
+      ? `${left} of ${total} shots left this turn. Enemy fires ${enemyShots} per turn.`
+      : `You'll have ${total} shots next turn. Enemy fires ${enemyShots} per turn.`;
+  }
+
+  function renderMode() {
+    const locked = state && state.phase !== 'placement';
+    els.modeButtons.forEach((btn) => {
+      btn.setAttribute('aria-checked', String(btn.dataset.mode === mode));
+      btn.disabled = locked;
+    });
+    els.modeBadge.classList.toggle('hidden', !isSalvo());
   }
 
   function renderStats() {
@@ -599,6 +666,8 @@
     renderFleet(els.enemyFleet, state.enemy, false);
     if (state.phase === 'placement') renderDock();
     renderStats();
+    renderSalvo();
+    renderMode();
     if (state.phase !== 'placement') renderHealerControls();
     const battle = state.phase === 'battle';
     els.enemyPanel.classList.toggle('active', battle && !state.busy);
@@ -657,6 +726,14 @@
   });
   els.start.addEventListener('click', startBattle);
   els.showHeat.addEventListener('change', renderPlayerBoard);
+  els.modeButtons.forEach((btn) =>
+    btn.addEventListener('click', () => {
+      if (state.phase !== 'placement') return;
+      mode = btn.dataset.mode;
+      localStorage.setItem(MODE_KEY, mode);
+      render();
+    }),
+  );
   els.soundToggle.addEventListener('click', () => {
     Sound.toggle();
     renderSoundToggle();

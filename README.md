@@ -17,6 +17,10 @@ Browser Battleship against an AI opponent. No build step or dependencies: serve 
 ## Tests
 `node sim.test.js` runs Healer rule unit tests plus AI simulations (solo and AI-vs-AI with Healers).
 
+## Salvo mode
+
+Pick **Classic** or **Salvo** at the top of the setup panel before the battle starts. In Salvo, you get one shot per turn for each of your ships still afloat, not counting the Healer (5 at the start, never fewer than 1). Each shot resolves as you fire it, and the turn ends after the last one. You may move or rotate your Healer instead of firing, but only before your first shot of the turn. The AI follows the same rules.
+
 ## Graphics and sound
 
 Ships are top-down SVG warships drawn in `js/ships.js`: Carrier, Battleship, Cruiser, Submarine, Destroyer, and a white fireboat for the Healer. Shots fly in, then hits burst into flames and misses splash. Sunk ships list and darken, and the board shakes. The Healer slides when it moves and swings round when it rotates. Sound effects are generated with the Web Audio API and can be turned off with the Sound button. Animations are reduced when the OS "reduce motion" setting is on.
