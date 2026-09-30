@@ -203,13 +203,13 @@
     view.water.appendChild(shark);
   }
 
-  function scheduleSharks() {
+  function scheduleSharks(delay = 2000 + Math.random() * 2000) {
     setTimeout(() => {
       if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !document.hidden) {
         spawnShark(Math.random() < 0.5 ? player : enemy);
       }
-      scheduleSharks();
-    }, 6000 + Math.random() * 10000);
+      scheduleSharks(4000 + Math.random() * 6000);
+    }, delay);
   }
 
   const FIRE_HTML =
