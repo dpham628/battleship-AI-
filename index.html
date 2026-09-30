@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Battleship vs AI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Battleship <span>vs AI</span></h1>
+    <div class="topbar-controls">
+      <label class="field">
+        Difficulty
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="normal">Normal</option>
+          <option value="hard" selected>Hard</option>
+        </select>
+      </label>
+      <div class="record" title="Your record (saved in this browser)">
+        <span>W <b id="wins">0</b></span>
+        <span>L <b id="losses">0</b></span>
+      </div>
+      <button id="new-game" class="btn ghost">New game</button>
+    </div>
+  </header>
+
+  <p id="status" class="status" aria-live="polite"></p>
+
+  <main class="layout">
+    <section class="panel" id="player-panel">
+      <h2>Your Fleet</h2>
+      <div class="board" id="player-board"></div>
+      <ul class="fleet" id="player-fleet"></ul>
+    </section>
+
+    <section class="side">
+      <div id="placement" class="card">
+        <h3>Deploy your fleet</h3>
+        <p class="hint">Pick a ship, then click your board. Press <kbd>R</kbd> or right-click to rotate. Click a placed ship to move it.</p>
+        <details class="rules">
+          <summary>The Healer ship</summary>
+          <p>Each side has a 2-cell <b class="healer-text">Healer</b>. On your turn you either fire <em>or</em> move the Healer one square (no rotation, only into cells the enemy hasn't fired at).</p>
+          <p>If the Healer ends its move touching a burning (hit) cell of a ship that isn't sunk, it puts out that fire: the hit is repaired and the enemy can target it again. Repairs are announced.</p>
+          <p>One hit immobilizes the Healer for the rest of the game; two hits sink it. Sink all six ships to win.</p>
+        </details>
+        <div id="dock" class="dock"></div>
+        <div class="row">
+          <button id="rotate" class="btn ghost">Rotate (<span id="orientation">horizontal</span>)</button>
+          <button id="randomize" class="btn ghost">Randomize</button>
+          <button id="clear" class="btn ghost">Clear</button>
+        </div>
+        <button id="start" class="btn primary" disabled>Start battle</button>
+      </div>
+
+      <div id="battle" class="card hidden">
+        <div class="healer-controls">
+          <div>
+            <h3>Your Healer</h3>
+            <p id="healer-status" class="hint"></p>
+            <p class="hint">Moving uses your turn. Arrow keys work too.</p>
+          </div>
+          <div class="dpad">
+            <button class="btn ghost" data-dir="up" aria-label="Move healer up">&#9650;</button>
+            <button class="btn ghost" data-dir="left" aria-label="Move healer left">&#9664;</button>
+            <button class="btn ghost" data-dir="right" aria-label="Move healer right">&#9654;</button>
+            <button class="btn ghost" data-dir="down" aria-label="Move healer down">&#9660;</button>
+          </div>
+        </div>
+        <h3>Battle stats</h3>
+        <table class="stats">
+          <thead><tr><th></th><th>Shots</th><th>Hits</th><th>Accuracy</th></tr></thead>
+          <tbody>
+            <tr><td>You</td><td id="p-shots">0</td><td id="p-hits">0</td><td id="p-acc">–</td></tr>
+            <tr><td>AI</td><td id="a-shots">0</td><td id="a-hits">0</td><td id="a-acc">–</td></tr>
+          </tbody>
+        </table>
+        <label class="toggle"><input type="checkbox" id="show-heat" /> Show AI targeting heat map</label>
+        <h3>Log</h3>
+        <ol id="log" class="log"></ol>
+      </div>
+    </section>
+
+    <section class="panel" id="enemy-panel">
+      <h2>Enemy Waters</h2>
+      <div class="board" id="enemy-board"></div>
+      <ul class="fleet" id="enemy-fleet"></ul>
+    </section>
+  </main>
+
+  <dialog id="gameover">
+    <h2 id="gameover-title"></h2>
+    <p id="gameover-text"></p>
+    <div class="row">
+      <button id="review" class="btn ghost">Review board</button>
+      <button id="play-again" class="btn primary">Play again</button>
+    </div>
+  </dialog>
+
+  <script src="js/engine.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
