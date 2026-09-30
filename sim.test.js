@@ -132,6 +132,7 @@ function fixedBoard() {
   b.receiveShot(8, 0);
   b.receiveShot(8, 1); // sink the Destroyer
   assert.strictEqual(b.salvoShots(), 4);
+  assert.strictEqual(b.salvoShots(true), 5, 'first turn is always a full salvo');
   // only the Healer left: still one shot per turn
   const c = fixedBoard();
   for (const i of [0, 1, 2, 3, 4]) c.ships[i].cells.forEach(([r, cc]) => c.receiveShot(r, cc));
@@ -196,7 +197,7 @@ function playDuel(dA, dB, salvo = false) {
       if (mv.repaired) ais[them].onRepair(mv.repaired.r, mv.repaired.c);
       continue;
     }
-    const shots = salvo ? boards[me].salvoShots() : 1;
+    const shots = salvo ? boards[me].salvoShots(turn < 2) : 1;
     for (let k = 0; k < shots; k++) {
       const [r, c] = ais[me].nextShot();
       const out = boards[them].receiveShot(r, c);

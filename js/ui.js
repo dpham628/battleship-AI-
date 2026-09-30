@@ -313,6 +313,7 @@
       shotsTotal: 1,
       shotsLeft: 1,
       stats: { pShots: 0, pHits: 0, aShots: 0, aHits: 0 },
+      turns: { player: 0, ai: 0 },
     };
     state.enemy.randomize();
     for (const view of [player, enemy]) {
@@ -428,6 +429,7 @@
 
   function endPlayerTurn(delay = AI_DELAY_MS) {
     const id = gameId;
+    state.turns.player++;
     state.busy = true;
     setStatus('Enemy is taking aim…');
     render();
@@ -469,7 +471,7 @@
 
   function startPlayerTurn() {
     state.busy = false;
-    state.shotsTotal = isSalvo() ? state.player.salvoShots() : 1;
+    state.shotsTotal = isSalvo() ? state.player.salvoShots(state.turns.player === 0) : 1;
     state.shotsLeft = state.shotsTotal;
     setStatus(playerTurnStatus(), 'turn-player');
     render();
@@ -488,7 +490,8 @@
       }
       return startPlayerTurn();
     }
-    const total = isSalvo() ? state.enemy.salvoShots() : 1;
+    const total = isSalvo() ? state.enemy.salvoShots(state.turns.ai === 0) : 1;
+    state.turns.ai++;
     const id = gameId;
     const fireOne = (k) => {
       if (id !== gameId) return;
@@ -726,15 +729,16 @@
     els.salvoMeter.classList.toggle('hidden', !show);
     if (!show) return;
     const yourTurn = state.phase === 'battle' && (!state.busy || midSalvo());
-    const total = yourTurn ? state.shotsTotal : state.player.salvoShots();
+    const total = yourTurn ? state.shotsTotal : state.player.salvoShots(state.turns.player === 0);
     const left = yourTurn ? state.shotsLeft : total;
     els.salvoShells.innerHTML = Array.from({ length: total }, (_, i) => `<span class="shell${i < left ? '' : ' spent'}"></span>`).join('');
-    const enemyShots = state.enemy.salvoShots();
+    const enemyShots = state.enemy.salvoShots(state.turns.ai === 0);
+    const enemyWhen = state.turns.ai === 0 ? 'on its first turn' : 'per turn';
     els.salvoText.textContent = state.phase === 'over'
       ? 'Game over.'
       : yourTurn
-      ? `${left} of ${total} shots left this turn. Enemy fires ${enemyShots} per turn.`
-      : `You'll have ${total} shots next turn. Enemy fires ${enemyShots} per turn.`;
+      ? `${left} of ${total} shots left this turn. Enemy fires ${enemyShots} ${enemyWhen}.`
+      : `You'll have ${total} shots next turn. Enemy fires ${enemyShots} ${enemyWhen}.`;
   }
 
   function renderMode() {

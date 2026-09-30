@@ -98,7 +98,8 @@
       return { result: 'hit', healer: ship.healer };
     }
 
-    salvoShots() {
+    salvoShots(firstTurn = false) {
+      if (firstTurn) return this.ships.filter((s) => !s.healer).length;
       const afloat = this.ships.filter((s, i) => !s.healer && s.cells && !this.isSunk(i)).length;
       return Math.max(1, afloat);
     }
