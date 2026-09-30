@@ -168,6 +168,18 @@ function fixedBoard() {
   assert.ok(!c.allSunk());
 }
 
+// AI stops hunting a Healer once it has hit it
+{
+  const ai = new AI('hard', Math.random);
+  ai.record(5, 5, { result: 'hit', healer: true });
+  assert.strictEqual(ai.remaining.length, 5);
+  assert.ok(ai.enemyHealerDisabled);
+  const heat = ai.heatmap();
+  assert.ok(heat[5][6] <= heat[0][0] * 10, 'no hunt weighting next to a disabled Healer');
+  ai.record(5, 6, { result: 'sunk', healer: true, cells: [[5, 5], [5, 6]] });
+  assert.strictEqual(ai.remaining.length, 5, 'sinking the Healer later does not drop a warship');
+}
+
 function playSolo(difficulty) {
   const board = new Board();
   board.randomize();

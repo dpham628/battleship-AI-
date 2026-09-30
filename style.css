@@ -267,6 +267,9 @@ dialog .row { justify-content: center; }
 @media (max-width: 1100px) {
   .side { order: 3; width: 100%; max-width: 640px; }
 }
+@media (max-width: 760px) {
+  .side { order: 0; }
+}
 
 .pip.healer { background: #3fbf8f; }
 .healer-text { color: #3fbf8f; }

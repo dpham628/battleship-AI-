@@ -247,8 +247,17 @@
     record(r, c, outcome) {
       this.healerLead = this.healerLead.filter(([rr, cc]) => rr !== r || cc !== c);
       if (outcome.healer) {
+        // A hit Healer is out of the fight and isn't needed to win, so stop hunting it.
         this.enemyHealerDisabled = true;
         this.healerLead = [];
+        const cells = outcome.result === 'sunk' ? outcome.cells : [[r, c]];
+        cells.forEach(([rr, cc]) => (this.knowledge[rr][cc] = SUNK));
+        if (!this.healerDropped) {
+          this.healerDropped = true;
+          const i = this.remaining.indexOf(2);
+          if (i !== -1) this.remaining.splice(i, 1);
+        }
+        return;
       }
       if (outcome.result === 'miss') this.knowledge[r][c] = MISS;
       else if (outcome.result === 'hit') this.knowledge[r][c] = HIT;
