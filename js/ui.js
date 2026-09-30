@@ -9,6 +9,7 @@
   const RECORD_KEY = 'battleship-record';
   const SOUND_KEY = 'battleship-sound';
   const MODE_KEY = 'battleship-mode';
+  const HEALER_KEY = 'battleship-healer';
   const SALVO_GAP_MS = 260;
   const DOUSE_DELAY_MS = 380;
   const DOUSE_MS = 1700;
@@ -25,6 +26,7 @@
     modeButtons: document.querySelectorAll('.mode-btn'),
     modeBadge: $('#mode-badge'),
     modeHint: $('#mode-hint'),
+    healerToggle: $('#healer-toggle'),
     healerRules: $('#healer-rules'),
     healerControls: $('#healer-controls'),
     salvoMeter: $('#salvo-meter'),
@@ -120,7 +122,9 @@
   let gameId = 0;
   let mode = localStorage.getItem(MODE_KEY) === 'salvo' ? 'salvo' : 'classic';
   const isSalvo = () => mode === 'salvo';
-  const fleetOpts = () => ({ healer: !isSalvo() });
+  let healerOn = localStorage.getItem(HEALER_KEY) !== 'off';
+  const useHealer = () => !isSalvo() && healerOn;
+  const fleetOpts = () => ({ healer: useHealer() });
   let player;
   let enemy;
 
@@ -391,7 +395,7 @@
     if (!pos) return;
     const [r, c] = pos;
     const target = state.enemy.grid[r][c];
-    if (target.hit) return;
+    if (target.hit || (target.shot && !useHealer())) return;
     const armed = state.pendingRefire && state.pendingRefire[0] === r && state.pendingRefire[1] === c;
     if (target.shot && !armed) {
       state.pendingRefire = [r, c];
@@ -740,9 +744,15 @@
       btn.disabled = locked;
     });
     els.modeBadge.classList.toggle('hidden', !isSalvo());
+    els.healerToggle.classList.toggle('hidden', isSalvo());
+    els.healerToggle.setAttribute('aria-checked', String(healerOn));
+    els.healerToggle.disabled = locked;
+    els.healerToggle.querySelector('.switch-state').textContent = healerOn ? 'On' : 'Off';
     els.modeHint.textContent = isSalvo()
       ? 'Salvo: five ships, no Healer. Each ship still afloat gives you a shot per turn, so losing ships cuts your firepower.'
-      : 'Classic: one shot per turn, and each side has a Healer ship that can repair hits.';
+      : healerOn
+      ? 'Classic: one shot per turn, and each side has a Healer ship that can repair hits.'
+      : 'Classic: one shot per turn with the standard five ships, no Healer.';
   }
 
   function renderStats() {
@@ -765,9 +775,9 @@
     renderStats();
     renderSalvo();
     renderMode();
-    els.healerControls.classList.toggle('hidden', isSalvo());
-    els.healerRules.classList.toggle('hidden', isSalvo());
-    if (state.phase !== 'placement' && !isSalvo()) renderHealerControls();
+    els.healerControls.classList.toggle('hidden', !useHealer());
+    els.healerRules.classList.toggle('hidden', !useHealer());
+    if (state.phase !== 'placement' && useHealer()) renderHealerControls();
     const battle = state.phase === 'battle';
     els.enemyPanel.classList.toggle('active', battle && !state.busy);
     els.playerPanel.classList.toggle('active', battle && state.busy);
@@ -833,6 +843,12 @@
       switchFleet();
     }),
   );
+  els.healerToggle.addEventListener('click', () => {
+    if (state.phase !== 'placement' || isSalvo()) return;
+    healerOn = !healerOn;
+    localStorage.setItem(HEALER_KEY, healerOn ? 'on' : 'off');
+    switchFleet();
+  });
   els.soundToggle.addEventListener('click', () => {
     Sound.toggle();
     renderSoundToggle();
