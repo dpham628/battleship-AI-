@@ -11,6 +11,7 @@
     { name: 'Healer', len: 2, healer: true },
   ];
   const HEALER = FLEET.findIndex((s) => s.healer);
+  const fleetFor = (healer) => (healer ? FLEET : FLEET.filter((s) => !s.healer));
   const HEALER_MOVES = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
   const HEALER_ACTIONS = [...Object.keys(HEALER_MOVES), 'rotate'];
 
@@ -28,9 +29,9 @@
   }
 
   class Board {
-    constructor() {
+    constructor({ healer = true } = {}) {
       this.grid = emptyGrid(() => ({ ship: -1, shot: false, hit: false, repaired: false }));
-      this.ships = FLEET.map((s) => ({ name: s.name, len: s.len, healer: !!s.healer, cells: null, horizontal: true, hits: 0 }));
+      this.ships = fleetFor(healer).map((s) => ({ name: s.name, len: s.len, healer: !!s.healer, cells: null, horizontal: true, hits: 0 }));
     }
 
     canPlace(idx, r, c, horizontal) {
@@ -104,6 +105,7 @@
 
     healerMobile() {
       const h = this.ships[HEALER];
+      if (!h) return false;
       return !!h.cells && h.hits === 0;
     }
 
@@ -209,11 +211,11 @@
   const SUNK = 3;
 
   class AI {
-    constructor(difficulty = 'hard', rng = Math.random) {
+    constructor(difficulty = 'hard', rng = Math.random, { healer = true } = {}) {
       this.difficulty = difficulty;
       this.rng = rng;
       this.knowledge = emptyGrid(() => UNKNOWN);
-      this.remaining = FLEET.map((s) => s.len);
+      this.remaining = fleetFor(healer).map((s) => s.len);
       this.enemyHealerDisabled = false;
       this.healerLead = [];
     }

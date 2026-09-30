@@ -19,7 +19,7 @@ Browser Battleship against an AI opponent. No build step or dependencies: serve 
 
 ## Salvo mode
 
-Pick **Classic** or **Salvo** at the top of the setup panel before the battle starts. In Salvo, you get one shot per turn for each of your ships still afloat, not counting the Healer (5 at the start, never fewer than 1). Each shot resolves as you fire it, and the turn ends after the last one. You may move or rotate your Healer instead of firing, but only before your first shot of the turn. The AI follows the same rules.
+Pick **Classic** or **Salvo** at the top of the setup panel before the battle starts. Salvo uses the standard five-ship fleet with **no Healer** on either side. You get one shot per turn for each of your ships still afloat (5 at the start). Each shot resolves as you fire it, and the turn ends after the last one. The AI follows the same rules.
 
 ## Graphics and sound
 

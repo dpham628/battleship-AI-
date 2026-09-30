@@ -48,11 +48,11 @@
               <span class="mode-name">Salvo</span><span class="mode-desc">1 shot per surviving ship</span>
             </button>
           </div>
-          <p class="hint">In Salvo, each ship still afloat (not counting the Healer) gives you a shot per turn, so sinking ships cuts firepower.</p>
+          <p class="hint" id="mode-hint"></p>
         </div>
         <h3>Deploy your fleet</h3>
         <p class="hint">Pick a ship, then click your board. Press <kbd>R</kbd> or right-click to rotate. Click a placed ship to move it.</p>
-        <details class="rules">
+        <details class="rules" id="healer-rules">
           <summary>The Healer ship</summary>
           <p>Each side has a 2-cell <b class="healer-text">Healer</b>. On your turn you either fire <em>or</em> move the Healer one square <em>or</em> rotate it (it pivots on one of its cells). It can't pass through ships or hits, but it <em>can</em> move over the enemy's missed shots.</p>
           <p>Because of that, you may fire again at a cell you missed (click it twice to confirm) — the enemy Healer might be there now.</p>
@@ -74,7 +74,7 @@
           <div class="shells" id="salvo-shells"></div>
           <p class="hint" id="salvo-text"></p>
         </div>
-        <div class="healer-controls">
+        <div class="healer-controls" id="healer-controls">
           <div>
             <h3>Your Healer</h3>
             <p id="healer-status" class="hint"></p>

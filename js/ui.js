@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const { SIZE, FLEET, HEALER, Board, AI } = window.Battleship;
+  const { SIZE, HEALER, Board, AI } = window.Battleship;
   const { shipSvg } = window.ShipArt;
   const LETTERS = 'ABCDEFGHIJ';
   const AI_DELAY_MS = 700;
@@ -22,6 +22,9 @@
     soundToggle: $('#sound-toggle'),
     modeButtons: document.querySelectorAll('.mode-btn'),
     modeBadge: $('#mode-badge'),
+    modeHint: $('#mode-hint'),
+    healerRules: $('#healer-rules'),
+    healerControls: $('#healer-controls'),
     salvoMeter: $('#salvo-meter'),
     salvoShells: $('#salvo-shells'),
     salvoText: $('#salvo-text'),
@@ -114,6 +117,7 @@
   let gameId = 0;
   let mode = localStorage.getItem(MODE_KEY) === 'salvo' ? 'salvo' : 'classic';
   const isSalvo = () => mode === 'salvo';
+  const fleetOpts = () => ({ healer: !isSalvo() });
   let player;
   let enemy;
 
@@ -221,9 +225,9 @@
     gameId++;
     state = {
       phase: 'placement',
-      player: new Board(),
-      enemy: new Board(),
-      ai: new AI(els.difficulty.value),
+      player: new Board(fleetOpts()),
+      enemy: new Board(fleetOpts()),
+      ai: new AI(els.difficulty.value, Math.random, fleetOpts()),
       selected: 0,
       horizontal: true,
       hover: null,
@@ -255,8 +259,9 @@
   }
 
   function nextUnplaced(from) {
-    for (let i = 1; i <= FLEET.length; i++) {
-      const idx = (from + i) % FLEET.length;
+    const n = state.player.ships.length;
+    for (let i = 1; i <= n; i++) {
+      const idx = (from + i) % n;
       if (!state.player.ships[idx].cells) return idx;
     }
     return null;
@@ -625,6 +630,21 @@
     els.healerStatus.textContent = status;
   }
 
+  function switchFleet() {
+    const old = state.player;
+    state.player = new Board(fleetOpts());
+    state.enemy = new Board(fleetOpts());
+    state.enemy.randomize();
+    state.ai = new AI(els.difficulty.value, Math.random, fleetOpts());
+    old.ships.forEach((s, i) => {
+      if (s.cells && !s.healer && i < state.player.ships.length) state.player.place(i, s.cells[0][0], s.cells[0][1], s.horizontal);
+    });
+    Object.values(player.sprites).forEach((el) => el.remove());
+    player.sprites = {};
+    state.selected = nextUnplaced(-1);
+    render();
+  }
+
   function renderSalvo() {
     const show = isSalvo() && state.phase !== 'placement';
     els.salvoMeter.classList.toggle('hidden', !show);
@@ -646,6 +666,9 @@
       btn.disabled = locked;
     });
     els.modeBadge.classList.toggle('hidden', !isSalvo());
+    els.modeHint.textContent = isSalvo()
+      ? 'Salvo: five ships, no Healer. Each ship still afloat gives you a shot per turn, so losing ships cuts your firepower.'
+      : 'Classic: one shot per turn, and each side has a Healer ship that can repair hits.';
   }
 
   function renderStats() {
@@ -668,7 +691,9 @@
     renderStats();
     renderSalvo();
     renderMode();
-    if (state.phase !== 'placement') renderHealerControls();
+    els.healerControls.classList.toggle('hidden', isSalvo());
+    els.healerRules.classList.toggle('hidden', isSalvo());
+    if (state.phase !== 'placement' && !isSalvo()) renderHealerControls();
     const battle = state.phase === 'battle';
     els.enemyPanel.classList.toggle('active', battle && !state.busy);
     els.playerPanel.classList.toggle('active', battle && state.busy);
@@ -728,10 +753,10 @@
   els.showHeat.addEventListener('change', renderPlayerBoard);
   els.modeButtons.forEach((btn) =>
     btn.addEventListener('click', () => {
-      if (state.phase !== 'placement') return;
+      if (state.phase !== 'placement' || btn.dataset.mode === mode) return;
       mode = btn.dataset.mode;
       localStorage.setItem(MODE_KEY, mode);
-      render();
+      switchFleet();
     }),
   );
   els.soundToggle.addEventListener('click', () => {

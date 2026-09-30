@@ -138,6 +138,21 @@ function fixedBoard() {
   assert.strictEqual(c.salvoShots(), 1);
 }
 
+// salvo fleet has no Healer
+{
+  const b = new Board({ healer: false });
+  assert.strictEqual(b.ships.length, 5);
+  assert.ok(!b.ships.some((s) => s.healer));
+  b.randomize();
+  assert.deepStrictEqual(b.healerMoves(), []);
+  assert.strictEqual(b.planHealerMove(4), null);
+  assert.strictEqual(b.moveHealer('up'), null);
+  assert.strictEqual(new AI('hard', Math.random, { healer: false }).remaining.length, 5);
+  let out;
+  for (const s of b.ships) for (const [r, c] of s.cells) out = b.receiveShot(r, c);
+  assert.ok(out.gameOver);
+}
+
 function playSolo(difficulty) {
   const board = new Board();
   board.randomize();
@@ -154,9 +169,10 @@ function playSolo(difficulty) {
 
 // AI vs AI with healers, to make sure games terminate
 function playDuel(dA, dB, salvo = false) {
-  const boards = [new Board(), new Board()];
+  const opts = { healer: !salvo };
+  const boards = [new Board(opts), new Board(opts)];
   boards.forEach((b) => b.randomize());
-  const ais = [new AI(dA), new AI(dB)];
+  const ais = [new AI(dA, Math.random, opts), new AI(dB, Math.random, opts)];
   for (let turn = 0; turn < 1000; turn++) {
     const me = turn % 2;
     const them = 1 - me;
