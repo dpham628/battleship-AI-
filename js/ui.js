@@ -1,10 +1,13 @@
 (function () {
   'use strict';
 
-  const { SIZE, FLEET, HEALER, Board, AI, shipCells } = window.Battleship;
+  const { SIZE, FLEET, HEALER, Board, AI } = window.Battleship;
+  const { shipSvg } = window.ShipArt;
   const LETTERS = 'ABCDEFGHIJ';
-  const AI_DELAY_MS = 650;
+  const AI_DELAY_MS = 700;
+  const SHELL_MS = 380;
   const RECORD_KEY = 'battleship-record';
+  const SOUND_KEY = 'battleship-sound';
 
   const $ = (sel) => document.querySelector(sel);
   const coord = (r, c) => `${LETTERS[r]}${c + 1}`;
@@ -14,8 +17,7 @@
     difficulty: $('#difficulty'),
     wins: $('#wins'),
     losses: $('#losses'),
-    playerBoard: $('#player-board'),
-    enemyBoard: $('#enemy-board'),
+    soundToggle: $('#sound-toggle'),
     playerPanel: $('#player-panel'),
     enemyPanel: $('#enemy-panel'),
     playerFleet: $('#player-fleet'),
@@ -34,9 +36,77 @@
     dialogText: $('#gameover-text'),
   };
 
+  const Sound = (() => {
+    let ctx = null;
+    let enabled = localStorage.getItem(SOUND_KEY) !== 'off';
+
+    function audio() {
+      if (!enabled) return null;
+      if (!ctx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        ctx = new Ctx();
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    }
+
+    function noise(dur, type, freq, gain, q = 1) {
+      const a = audio();
+      if (!a) return;
+      const len = Math.floor(a.sampleRate * dur);
+      const buf = a.createBuffer(1, len, a.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+      const src = a.createBufferSource();
+      src.buffer = buf;
+      const filter = a.createBiquadFilter();
+      filter.type = type;
+      filter.frequency.value = freq;
+      filter.Q.value = q;
+      const g = a.createGain();
+      g.gain.value = gain;
+      src.connect(filter).connect(g).connect(a.destination);
+      src.start();
+    }
+
+    function tone(type, from, to, dur, gain, delay = 0) {
+      const a = audio();
+      if (!a) return;
+      const t = a.currentTime + delay;
+      const osc = a.createOscillator();
+      const g = a.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(from, t);
+      osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+      g.gain.setValueAtTime(gain, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(g).connect(a.destination);
+      osc.start(t);
+      osc.stop(t + dur);
+    }
+
+    return {
+      get enabled() {
+        return enabled;
+      },
+      toggle() {
+        enabled = !enabled;
+        localStorage.setItem(SOUND_KEY, enabled ? 'on' : 'off');
+        return enabled;
+      },
+      whistle: () => tone('triangle', 1500, 500, SHELL_MS / 1000, 0.04),
+      boom: () => { noise(0.9, 'lowpass', 900, 0.9); tone('sine', 110, 35, 0.5, 0.7); },
+      splash: () => noise(0.5, 'bandpass', 1500, 0.6, 0.7),
+      sink: () => { noise(1.8, 'lowpass', 350, 0.9); tone('sine', 70, 25, 1.4, 0.6); },
+      repair: () => { tone('sine', 660, 880, 0.12, 0.12); tone('sine', 880, 1320, 0.16, 0.12, 0.12); },
+    };
+  })();
+
   let state;
-  let playerCells;
-  let enemyCells;
+  let gameId = 0;
+  let player;
+  let enemy;
 
   function loadRecord() {
     try {
@@ -54,27 +124,82 @@
     }
   }
 
+  function div(className) {
+    const el = document.createElement('div');
+    el.className = className;
+    return el;
+  }
+
   function buildBoard(el) {
     el.innerHTML = '';
-    const cells = [];
-    el.appendChild(Object.assign(document.createElement('div'), { className: 'label' }));
-    for (let c = 0; c < SIZE; c++) {
-      el.appendChild(Object.assign(document.createElement('div'), { className: 'label', textContent: c + 1 }));
-    }
+    const view = { el, cells: [], sprites: {} };
+    el.appendChild(div('label'));
+    for (let c = 0; c < SIZE; c++) el.appendChild(Object.assign(div('label'), { textContent: c + 1 }));
     for (let r = 0; r < SIZE; r++) {
-      el.appendChild(Object.assign(document.createElement('div'), { className: 'label', textContent: LETTERS[r] }));
-      cells.push([]);
+      el.appendChild(Object.assign(div('label'), { textContent: LETTERS[r] }));
+      view.cells.push([]);
       for (let c = 0; c < SIZE; c++) {
         const btn = document.createElement('button');
         btn.className = 'cell';
         btn.dataset.r = r;
         btn.dataset.c = c;
+        btn.style.setProperty('--d', Math.random().toFixed(2));
         btn.setAttribute('aria-label', coord(r, c));
         el.appendChild(btn);
-        cells[r].push(btn);
+        view.cells[r].push(btn);
       }
     }
-    return cells;
+    view.shipLayer = div('ship-layer');
+    view.fxLayer = div('fx-layer');
+    view.reticle = div('reticle');
+    view.reticle.hidden = true;
+    view.fxLayer.appendChild(view.reticle);
+    el.append(div('water'), view.shipLayer, view.fxLayer);
+    return view;
+  }
+
+  function position(el, r, c) {
+    el.style.setProperty('--r', r);
+    el.style.setProperty('--c', c);
+  }
+
+  function drawSprite(view, key, ship, r, c, horizontal, extra) {
+    let el = view.sprites[key];
+    if (!el || el.dataset.name !== ship.name) {
+      if (el) el.remove();
+      el = div('ship-sprite');
+      el.dataset.name = ship.name;
+      el.innerHTML = `<div class="ship-inner">${shipSvg(ship.name, ship.len)}</div>`;
+      el.style.setProperty('--len', ship.len);
+      el.style.setProperty('--bob', `${(Math.random() * -4).toFixed(2)}s`);
+      view.shipLayer.appendChild(el);
+      view.sprites[key] = el;
+    }
+    el.hidden = false;
+    position(el, r, c);
+    el.className = ['ship-sprite', `ship-${ship.name.toLowerCase()}`, horizontal ? 'h' : 'v', ...extra].join(' ');
+  }
+
+  function hideSprite(view, key) {
+    if (view.sprites[key]) view.sprites[key].hidden = true;
+  }
+
+  function setReticle(view, pos) {
+    view.reticle.hidden = !pos;
+    if (pos) position(view.reticle, pos[0], pos[1]);
+  }
+
+  function spawnFx(view, r, c, type, ms) {
+    const el = div(`fx-item ${type}`);
+    position(el, r, c);
+    view.fxLayer.appendChild(el);
+    setTimeout(() => el.remove(), ms);
+  }
+
+  function shake(el) {
+    el.classList.remove('shake');
+    void el.offsetWidth;
+    el.classList.add('shake');
   }
 
   function cellFromEvent(e) {
@@ -83,7 +208,8 @@
   }
 
   function newGame() {
-    els.dialog.open && els.dialog.close();
+    if (els.dialog.open) els.dialog.close();
+    gameId++;
     state = {
       phase: 'placement',
       player: new Board(),
@@ -100,6 +226,10 @@
       stats: { pShots: 0, pHits: 0, aShots: 0, aHits: 0 },
     };
     state.enemy.randomize();
+    for (const view of [player, enemy]) {
+      Object.values(view.sprites).forEach((el) => el.remove());
+      view.sprites = {};
+    }
     els.log.innerHTML = '';
     els.placement.classList.remove('hidden');
     els.battle.classList.add('hidden');
@@ -142,6 +272,30 @@
     render();
   }
 
+  function launch(view, r, c, done) {
+    const id = gameId;
+    Sound.whistle();
+    spawnFx(view, r, c, 'incoming', SHELL_MS + 60);
+    setTimeout(() => {
+      if (id === gameId) done();
+    }, SHELL_MS);
+  }
+
+  function impact(view, r, c, out) {
+    if (out.result === 'miss') {
+      spawnFx(view, r, c, 'splash', 1000);
+      Sound.splash();
+      return;
+    }
+    spawnFx(view, r, c, 'boom', 900);
+    Sound.boom();
+    if (out.result === 'sunk') {
+      Sound.sink();
+      shake(view.el);
+      out.cells.forEach(([rr, cc], i) => setTimeout(() => spawnFx(view, rr, cc, 'boom', 900), 110 * (i + 1)));
+    }
+  }
+
   function onEnemyBoardClick(e) {
     if (state.phase !== 'battle' || state.busy) return;
     const pos = cellFromEvent(e);
@@ -157,23 +311,30 @@
       return;
     }
     state.pendingRefire = null;
+    state.busy = true;
+    setStatus(`Firing at ${coord(r, c)}…`);
+    render();
 
-    const out = state.enemy.receiveShot(r, c);
-    state.stats.pShots++;
-    if (out.result !== 'miss') state.stats.pHits++;
-    state.lastPlayerShot = [r, c];
-    logShot('player', r, c, out);
-
-    if (out.gameOver) return endGame(true);
-
-    endPlayerTurn();
+    launch(enemy, r, c, () => {
+      const out = state.enemy.receiveShot(r, c);
+      state.stats.pShots++;
+      if (out.result !== 'miss') state.stats.pHits++;
+      state.lastPlayerShot = [r, c];
+      impact(enemy, r, c, out);
+      logShot('player', r, c, out);
+      if (out.gameOver) return endGame(true);
+      endPlayerTurn();
+    });
   }
 
   function endPlayerTurn() {
+    const id = gameId;
     state.busy = true;
     setStatus('Enemy is taking aim…');
     render();
-    setTimeout(aiTurn, AI_DELAY_MS);
+    setTimeout(() => {
+      if (id === gameId) aiTurn();
+    }, AI_DELAY_MS);
   }
 
   function moveHealer(dir) {
@@ -181,7 +342,11 @@
     const mv = state.player.moveHealer(dir);
     if (!mv) return;
     state.pendingRefire = null;
-    if (mv.repaired) state.ai.onRepair(mv.repaired.r, mv.repaired.c);
+    if (mv.repaired) {
+      state.ai.onRepair(mv.repaired.r, mv.repaired.c);
+      spawnFx(player, mv.repaired.r, mv.repaired.c, 'repair-fx', 1000);
+      Sound.repair();
+    }
     state.healerFlash = 'player';
     logMove('player', mv);
     endPlayerTurn();
@@ -193,6 +358,12 @@
       : 'Your turn — fire on Enemy Waters.';
   }
 
+  function startPlayerTurn() {
+    state.busy = false;
+    setStatus(playerTurnStatus(), 'turn-player');
+    render();
+  }
+
   function aiTurn() {
     if (state.phase !== 'battle') return;
     state.healerFlash = null;
@@ -200,25 +371,25 @@
     if (dir) {
       const mv = state.enemy.moveHealer(dir);
       logMove('ai', mv);
-      if (mv.repaired) state.lastPlayerShot = null;
-      state.busy = false;
-      setStatus(playerTurnStatus(), 'turn-player');
-      render();
-      return;
+      if (mv.repaired) {
+        spawnFx(enemy, mv.repaired.r, mv.repaired.c, 'repair-fx', 1000);
+        Sound.repair();
+        state.lastPlayerShot = null;
+      }
+      return startPlayerTurn();
     }
     const [r, c] = state.ai.nextShot();
-    const out = state.player.receiveShot(r, c);
-    state.ai.record(r, c, out);
-    state.stats.aShots++;
-    if (out.result !== 'miss') state.stats.aHits++;
-    state.lastAiShot = [r, c];
-    logShot('ai', r, c, out);
-
-    if (out.gameOver) return endGame(false);
-
-    state.busy = false;
-    setStatus(playerTurnStatus(), 'turn-player');
-    render();
+    launch(player, r, c, () => {
+      const out = state.player.receiveShot(r, c);
+      state.ai.record(r, c, out);
+      state.stats.aShots++;
+      if (out.result !== 'miss') state.stats.aHits++;
+      state.lastAiShot = [r, c];
+      impact(player, r, c, out);
+      logShot('ai', r, c, out);
+      if (out.gameOver) return endGame(false);
+      startPlayerTurn();
+    });
   }
 
   function addLog(cls, text) {
@@ -255,8 +426,7 @@
     els.difficulty.disabled = true;
     els.placement.classList.add('hidden');
     els.battle.classList.remove('hidden');
-    setStatus(playerTurnStatus(), 'turn-player');
-    render();
+    startPlayerTurn();
   }
 
   function endGame(playerWon) {
@@ -275,30 +445,33 @@
     setStatus(playerWon ? 'You win! The enemy fleet is destroyed.' : 'You lose. Your fleet has been sunk.', playerWon ? 'win' : 'lose');
     els.difficulty.disabled = false;
     render();
-    setTimeout(() => els.dialog.showModal(), 500);
-  }
-
-  function shipShapeClasses(board, idx, r, c) {
-    const ship = board.ships[idx];
-    const cls = ['ship', ship.horizontal ? 'h' : 'v'];
-    if (ship.healer) cls.push('healer');
-    const [sr, sc] = ship.cells[0];
-    const [er, ec] = ship.cells[ship.cells.length - 1];
-    if (r === sr && c === sc) cls.push('start');
-    if (r === er && c === ec) cls.push('end');
-    return cls;
+    const id = gameId;
+    setTimeout(() => {
+      if (id === gameId) els.dialog.showModal();
+    }, 1400);
   }
 
   function renderPlayerBoard() {
     const board = state.player;
     const placing = state.phase === 'placement';
-    els.playerBoard.classList.toggle('placing', placing);
+    player.el.classList.toggle('placing', placing);
+    player.el.classList.toggle('in-battle', !placing);
 
-    let preview = null;
+    board.ships.forEach((s, i) => {
+      if (!s.cells) return hideSprite(player, i);
+      const extra = [];
+      if (placing && i === state.selected) extra.push('selected');
+      if (board.isSunk(i)) extra.push('sunk');
+      if (state.healerFlash === 'player' && i === HEALER) extra.push('flash');
+      drawSprite(player, i, s, s.cells[0][0], s.cells[0][1], s.horizontal, extra);
+    });
+
     if (placing && state.selected !== null && state.hover) {
       const [hr, hc] = state.hover;
-      const cells = shipCells(hr, hc, board.ships[state.selected].len, state.horizontal);
-      preview = { ok: board.canPlace(state.selected, hr, hc, state.horizontal), keys: new Set(cells.map(([r, c]) => r * SIZE + c)) };
+      const ok = board.canPlace(state.selected, hr, hc, state.horizontal);
+      drawSprite(player, 'ghost', board.ships[state.selected], hr, hc, state.horizontal, ['ghost', ok ? 'ok' : 'bad']);
+    } else {
+      hideSprite(player, 'ghost');
     }
 
     let heat = null;
@@ -311,19 +484,13 @@
     for (let r = 0; r < SIZE; r++) {
       for (let c = 0; c < SIZE; c++) {
         const cell = board.grid[r][c];
-        const el = playerCells[r][c];
+        const el = player.cells[r][c];
         const cls = ['cell'];
-        if (cell.ship !== -1) {
-          cls.push(...shipShapeClasses(board, cell.ship, r, c));
-          if (placing && cell.ship === state.selected) cls.push('selected');
-          if (board.isSunk(cell.ship)) cls.push('sunk');
-        }
+        if (cell.ship !== -1) cls.push('ship');
+        if (cell.ship !== -1 && board.isSunk(cell.ship)) cls.push('sunk');
         if (cell.hit) cls.push('shot', 'hit');
         else if (cell.shot) cls.push('shot', 'miss');
         else if (cell.repaired) cls.push('repaired');
-        if (state.healerFlash === 'player' && cell.ship === HEALER) cls.push('healer-flash');
-        if (state.lastAiShot && state.lastAiShot[0] === r && state.lastAiShot[1] === c) cls.push('last');
-        if (preview && preview.keys.has(r * SIZE + c)) cls.push(preview.ok ? 'preview-ok' : 'preview-bad');
         el.style.removeProperty('--heat');
         if (heat && !cell.hit && maxHeat > 0 && heat[r][c] > 0) {
           cls.push('heat');
@@ -332,28 +499,33 @@
         el.className = cls.join(' ');
       }
     }
+    setReticle(player, state.lastAiShot);
   }
 
   function renderEnemyBoard() {
     const board = state.enemy;
     const over = state.phase === 'over';
-    els.enemyBoard.classList.toggle('targetable', state.phase === 'battle' && !state.busy);
+    enemy.el.classList.toggle('targetable', state.phase === 'battle' && !state.busy);
+
+    board.ships.forEach((s, i) => {
+      if (board.isSunk(i)) drawSprite(enemy, i, s, s.cells[0][0], s.cells[0][1], s.horizontal, ['sunk']);
+      else if (over) drawSprite(enemy, i, s, s.cells[0][0], s.cells[0][1], s.horizontal, ['reveal']);
+      else hideSprite(enemy, i);
+    });
+
     for (let r = 0; r < SIZE; r++) {
       for (let c = 0; c < SIZE; c++) {
         const cell = board.grid[r][c];
-        const el = enemyCells[r][c];
         const cls = ['cell'];
-        const sunk = cell.ship !== -1 && board.isSunk(cell.ship);
-        if (sunk) cls.push(...shipShapeClasses(board, cell.ship, r, c), 'sunk');
-        else if (over && cell.ship !== -1 && !cell.hit) cls.push('reveal');
+        if (cell.ship !== -1 && board.isSunk(cell.ship)) cls.push('sunk');
         if (cell.hit) cls.push('shot', 'hit');
         else if (cell.shot) cls.push('shot', 'miss');
         else if (cell.repaired) cls.push('repaired');
         if (state.pendingRefire && state.pendingRefire[0] === r && state.pendingRefire[1] === c) cls.push('armed');
-        if (state.lastPlayerShot && state.lastPlayerShot[0] === r && state.lastPlayerShot[1] === c) cls.push('last');
-        el.className = cls.join(' ');
+        enemy.cells[r][c].className = cls.join(' ');
       }
     }
+    setReticle(enemy, state.lastPlayerShot);
   }
 
   function pips(ship, showHits) {
@@ -379,7 +551,7 @@
     state.player.ships.forEach((s, i) => {
       const btn = document.createElement('button');
       btn.className = [s.cells ? 'placed' : '', state.selected === i ? 'selected' : ''].join(' ');
-      btn.innerHTML = `<span>${s.name} (${s.len})</span>${pips(s, false)}`;
+      btn.innerHTML = `<span>${s.name} (${s.len})</span><span class="mini" style="--len:${s.len}">${shipSvg(s.name, s.len)}</span>`;
       btn.addEventListener('click', () => {
         state.selected = i;
         if (s.cells) state.horizontal = s.horizontal;
@@ -400,7 +572,9 @@
     else if (healer.hits > 0) status = 'Hit and immobilized for the rest of the game.';
     else {
       const fire = state.player.fireNextTo(healer.cells);
-      status = fire ? `Mobile. Next to a fire at ${coord(fire[0], fire[1])} — move along it to repair.` : 'Mobile. Move next to a burning ship to repair it.';
+      status = fire
+        ? `Mobile. Next to a fire at ${coord(fire[0], fire[1])} — move along it to repair.`
+        : 'Mobile. Move next to a burning ship to repair it.';
     }
     els.healerStatus.textContent = status;
   }
@@ -432,26 +606,31 @@
     els.losses.textContent = record.losses;
   }
 
-  playerCells = buildBoard(els.playerBoard);
-  enemyCells = buildBoard(els.enemyBoard);
+  function renderSoundToggle() {
+    els.soundToggle.textContent = `Sound: ${Sound.enabled ? 'on' : 'off'}`;
+    els.soundToggle.setAttribute('aria-pressed', String(Sound.enabled));
+  }
 
-  els.playerBoard.addEventListener('click', onPlayerBoardClick);
-  els.playerBoard.addEventListener('mouseover', (e) => {
+  player = buildBoard($('#player-board'));
+  enemy = buildBoard($('#enemy-board'));
+
+  player.el.addEventListener('click', onPlayerBoardClick);
+  player.el.addEventListener('mouseover', (e) => {
     const pos = cellFromEvent(e);
     if (state.phase !== 'placement' || !pos) return;
     state.hover = pos;
     renderPlayerBoard();
   });
-  els.playerBoard.addEventListener('mouseleave', () => {
+  player.el.addEventListener('mouseleave', () => {
     state.hover = null;
     renderPlayerBoard();
   });
-  els.playerBoard.addEventListener('contextmenu', (e) => {
+  player.el.addEventListener('contextmenu', (e) => {
     if (state.phase !== 'placement') return;
     e.preventDefault();
     rotate();
   });
-  els.enemyBoard.addEventListener('click', onEnemyBoardClick);
+  enemy.el.addEventListener('click', onEnemyBoardClick);
 
   document.addEventListener('keydown', (e) => {
     if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) rotate();
@@ -476,6 +655,10 @@
   });
   els.start.addEventListener('click', startBattle);
   els.showHeat.addEventListener('change', renderPlayerBoard);
+  els.soundToggle.addEventListener('click', () => {
+    Sound.toggle();
+    renderSoundToggle();
+  });
   $('#new-game').addEventListener('click', () => {
     if (state.phase === 'battle' && !confirm('Abandon the current game?')) return;
     newGame();
@@ -486,5 +669,6 @@
     if (state.phase === 'placement') state.ai.difficulty = els.difficulty.value;
   });
 
+  renderSoundToggle();
   newGame();
 })();

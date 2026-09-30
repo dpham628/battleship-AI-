@@ -16,3 +16,7 @@ Browser Battleship against an AI opponent. No build step or dependencies: serve 
 
 ## Tests
 `node sim.test.js` runs Healer rule unit tests plus AI simulations (solo and AI-vs-AI with Healers).
+
+## Graphics and sound
+
+Ships are top-down SVG warships drawn in `js/ships.js`: Carrier, Battleship, Cruiser, Submarine, Destroyer, and a white fireboat for the Healer. Shots fly in, then hits burst into flames and misses splash. Sunk ships list and darken, and the board shakes. The Healer slides when it moves. Sound effects are generated with the Web Audio API and can be turned off with the Sound button. Animations are reduced when the OS "reduce motion" setting is on.
