@@ -528,7 +528,9 @@
     const own = who === 'player' ? 'your' : 'its';
     const verb = mv.dir === 'rotate' ? 'rotated' : 'moved';
     let text = who === 'player' ? `You ${verb} your Healer${mv.dir === 'rotate' ? '' : ` ${mv.dir}`}` : `AI ${verb} its Healer`;
-    text += mv.repaired ? ` and put out the fire on ${own} ${mv.repaired.name} at ${coord(mv.repaired.r, mv.repaired.c)}!` : '.';
+    const where = coord(mv.repaired?.r, mv.repaired?.c);
+    const fire = who === 'player' ? `the fire on ${own} ${mv.repaired?.name} at ${where}` : `a fire at ${where}`;
+    text += mv.repaired ? ` and put out ${fire}!` : '.';
     addLog(`${who} move${mv.repaired ? ' repair' : ''}`, text);
   }
 
@@ -536,7 +538,7 @@
     const actor = who === 'player' ? 'You' : 'AI';
     let text = `${actor} fired at ${coord(r, c)} — `;
     if (out.result === 'miss') text += 'miss.';
-    else if (out.result === 'hit' && out.healer) text += `hit ${who === 'player' ? 'their' : 'your'} Healer — it can no longer move or repair!`;
+    else if (out.result === 'hit' && out.healer && who === 'ai') text += 'hit your Healer — it can no longer move or repair!';
     else if (out.result === 'hit') text += 'hit!';
     else text += who === 'player' ? `sunk their ${out.name}!` : `sunk your ${out.name}!`;
     addLog(`${who} ${out.result}`, text);
@@ -669,8 +671,8 @@
   function renderFleet(el, board, showHits) {
     el.innerHTML = board.ships
       .map((s, i) => {
-        const label = s.healer && s.hits > 0 && !board.isSunk(i) ? `${s.name} (disabled)` : s.name;
-        return `<li class="${board.isSunk(i) ? 'sunk' : ''}"><span>${label}</span>${pips(s, showHits || (s.healer && s.hits > 0))}</li>`;
+        const label = showHits && s.healer && s.hits > 0 && !board.isSunk(i) ? `${s.name} (disabled)` : s.name;
+        return `<li class="${board.isSunk(i) ? 'sunk' : ''}"><span>${label}</span>${pips(s, showHits)}</li>`;
       })
       .join('');
   }
