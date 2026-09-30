@@ -96,6 +96,7 @@
       lastAiShot: null,
       lastPlayerShot: null,
       healerFlash: null,
+      pendingRefire: null,
       stats: { pShots: 0, pHits: 0, aShots: 0, aHits: 0 },
     };
     state.enemy.randomize();
@@ -146,7 +147,16 @@
     const pos = cellFromEvent(e);
     if (!pos) return;
     const [r, c] = pos;
-    if (state.enemy.grid[r][c].shot) return;
+    const target = state.enemy.grid[r][c];
+    if (target.hit) return;
+    const armed = state.pendingRefire && state.pendingRefire[0] === r && state.pendingRefire[1] === c;
+    if (target.shot && !armed) {
+      state.pendingRefire = [r, c];
+      setStatus(`${coord(r, c)} was a miss. Click it again to fire there anyway — the enemy Healer may have moved in.`, 'turn-player');
+      renderEnemyBoard();
+      return;
+    }
+    state.pendingRefire = null;
 
     const out = state.enemy.receiveShot(r, c);
     state.stats.pShots++;
@@ -170,6 +180,7 @@
     if (state.phase !== 'battle' || state.busy) return;
     const mv = state.player.moveHealer(dir);
     if (!mv) return;
+    state.pendingRefire = null;
     if (mv.repaired) state.ai.onRepair(mv.repaired.r, mv.repaired.c);
     state.healerFlash = 'player';
     logMove('player', mv);
@@ -307,13 +318,14 @@
           if (placing && cell.ship === state.selected) cls.push('selected');
           if (board.isSunk(cell.ship)) cls.push('sunk');
         }
-        if (cell.shot) cls.push('shot', cell.ship === -1 ? 'miss' : 'hit');
+        if (cell.hit) cls.push('shot', 'hit');
+        else if (cell.shot) cls.push('shot', 'miss');
         else if (cell.repaired) cls.push('repaired');
         if (state.healerFlash === 'player' && cell.ship === HEALER) cls.push('healer-flash');
         if (state.lastAiShot && state.lastAiShot[0] === r && state.lastAiShot[1] === c) cls.push('last');
         if (preview && preview.keys.has(r * SIZE + c)) cls.push(preview.ok ? 'preview-ok' : 'preview-bad');
         el.style.removeProperty('--heat');
-        if (heat && !cell.shot && maxHeat > 0 && heat[r][c] > 0) {
+        if (heat && !cell.hit && maxHeat > 0 && heat[r][c] > 0) {
           cls.push('heat');
           el.style.setProperty('--heat', (heat[r][c] / maxHeat).toFixed(3));
         }
@@ -333,9 +345,11 @@
         const cls = ['cell'];
         const sunk = cell.ship !== -1 && board.isSunk(cell.ship);
         if (sunk) cls.push(...shipShapeClasses(board, cell.ship, r, c), 'sunk');
-        else if (over && cell.ship !== -1 && !cell.shot) cls.push('reveal');
-        if (cell.shot) cls.push('shot', cell.ship === -1 ? 'miss' : 'hit');
+        else if (over && cell.ship !== -1 && !cell.hit) cls.push('reveal');
+        if (cell.hit) cls.push('shot', 'hit');
+        else if (cell.shot) cls.push('shot', 'miss');
         else if (cell.repaired) cls.push('repaired');
+        if (state.pendingRefire && state.pendingRefire[0] === r && state.pendingRefire[1] === c) cls.push('armed');
         if (state.lastPlayerShot && state.lastPlayerShot[0] === r && state.lastPlayerShot[1] === c) cls.push('last');
         el.className = cls.join(' ');
       }

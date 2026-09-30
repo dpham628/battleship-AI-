@@ -26,16 +26,46 @@ function fixedBoard() {
   assert.strictEqual(b.ships[4].hits, 0);
   assert.strictEqual(b.grid[8][1].shot, false);
   assert.strictEqual(b.grid[8][1].repaired, true);
-  // cannot move into fired-at cell
-  b.receiveShot(9, 0);
-  assert.ok(!b.healerMoves().includes('left'));
-  // hit immobilizes, second hit sinks
-  const h1 = b.receiveShot(9, 1);
+  // re-firing at a plain miss is allowed and still a miss
+  assert.strictEqual(b.receiveShot(5, 9).result, 'miss');
+  assert.strictEqual(b.receiveShot(5, 9).result, 'miss');
+  // healer can move onto a missed cell; re-firing there hits it and immobilizes it
+  assert.strictEqual(b.receiveShot(9, 0).result, 'miss');
+  assert.ok(b.healerMoves().includes('left'));
+  b.moveHealer('left'); // J1-J2
+  assert.strictEqual(b.grid[9][0].ship, HEALER);
+  const h1 = b.receiveShot(9, 0);
   assert.strictEqual(h1.result, 'hit');
   assert.ok(h1.healer);
   assert.deepStrictEqual(b.healerMoves(), []);
   assert.strictEqual(b.moveHealer('up'), null);
-  assert.strictEqual(b.receiveShot(9, 2).result, 'sunk');
+  assert.strictEqual(b.receiveShot(9, 0).result, 'repeat');
+  assert.strictEqual(b.receiveShot(9, 1).result, 'sunk');
+}
+
+// healer cannot move through hit cells
+{
+  const b = fixedBoard();
+  b.place(HEALER, 7, 5, true); // H6-H7
+  b.receiveShot(8, 0); // Destroyer I1 hit
+  b.place(HEALER, 9, 0, true); // J1-J2 (place bypasses movement rules)
+  assert.ok(!b.healerMoves().includes('up'));
+}
+
+// AI hunts old misses next to a repaired cell
+{
+  const ai = new AI('hard');
+  ai.record(3, 5, { result: 'miss' });
+  ai.record(4, 5, { result: 'hit' });
+  ai.onRepair(4, 5);
+  assert.ok(ai.healerLead.some(([r, c]) => r === 3 && c === 5));
+  const seen = new Set();
+  for (let i = 0; i < 4; i++) {
+    const [r, c] = ai.nextShot();
+    seen.add(`${r},${c}`);
+    ai.record(r, c, { result: 'miss' });
+  }
+  assert.ok(seen.has('3,5'), 'AI should re-fire at the old miss beside the repair');
 }
 
 // sunk ships cannot be repaired

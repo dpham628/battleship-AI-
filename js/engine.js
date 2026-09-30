@@ -28,7 +28,7 @@
 
   class Board {
     constructor() {
-      this.grid = emptyGrid(() => ({ ship: -1, shot: false, repaired: false }));
+      this.grid = emptyGrid(() => ({ ship: -1, shot: false, hit: false, repaired: false }));
       this.ships = FLEET.map((s) => ({ name: s.name, len: s.len, healer: !!s.healer, cells: null, horizontal: true, hits: 0 }));
     }
 
@@ -83,10 +83,11 @@
 
     receiveShot(r, c) {
       const cell = this.grid[r][c];
-      if (cell.shot) return { result: 'repeat' };
+      if (cell.hit) return { result: 'repeat' };
       cell.shot = true;
       cell.repaired = false;
       if (cell.ship === -1) return { result: 'miss' };
+      cell.hit = true;
       const ship = this.ships[cell.ship];
       ship.hits++;
       if (ship.hits === ship.len) {
@@ -108,7 +109,7 @@
       return cells.every(([r, c]) => {
         if (!inBounds(r, c)) return false;
         const cell = this.grid[r][c];
-        return !cell.shot && (cell.ship === -1 || cell.ship === HEALER);
+        return !cell.hit && (cell.ship === -1 || cell.ship === HEALER);
       });
     }
 
@@ -124,7 +125,7 @@
           const cc = c + dc;
           if (!inBounds(rr, cc)) continue;
           const cell = this.grid[rr][cc];
-          if (cell.shot && cell.ship !== -1 && cell.ship !== HEALER && !this.isSunk(cell.ship)) return [rr, cc];
+          if (cell.hit && cell.ship !== HEALER && !this.isSunk(cell.ship)) return [rr, cc];
         }
       }
       return null;
@@ -144,6 +145,7 @@
         const [r, c] = fire;
         const cell = this.grid[r][c];
         cell.shot = false;
+        cell.hit = false;
         cell.repaired = true;
         this.ships[cell.ship].hits--;
         repaired = { r, c, ship: cell.ship, name: this.ships[cell.ship].name };
@@ -206,10 +208,9 @@
     onRepair(r, c) {
       this.knowledge[r][c] = UNKNOWN;
       if (this.enemyHealerDisabled) return;
+      const open = (rr, cc) => this.at(rr, cc) === UNKNOWN || this.at(rr, cc) === MISS;
       this.healerLead = DIRS.map(([dr, dc]) => [r + dr, c + dc]).filter(
-        ([rr, cc]) =>
-          this.at(rr, cc) === UNKNOWN &&
-          DIRS.some(([dr, dc]) => (rr + dr !== r || cc + dc !== c) && this.at(rr + dr, cc + dc) === UNKNOWN)
+        ([rr, cc]) => open(rr, cc) && DIRS.some(([dr, dc]) => (rr + dr !== r || cc + dc !== c) && open(rr + dr, cc + dc))
       );
     }
 
@@ -218,6 +219,7 @@
     }
 
     record(r, c, outcome) {
+      this.healerLead = this.healerLead.filter(([rr, cc]) => rr !== r || cc !== c);
       if (outcome.healer) {
         this.enemyHealerDisabled = true;
         this.healerLead = [];
@@ -242,8 +244,19 @@
     }
 
     nextShot() {
+      return this.chooseShot() || this.hiddenHealerShot();
+    }
+
+    hiddenHealerShot() {
+      const open = (r, c) => this.at(r, c) === UNKNOWN || this.at(r, c) === MISS;
+      const misses = this.cellsWhere(MISS);
+      const fits = misses.filter(([r, c]) => DIRS.some(([dr, dc]) => open(r + dr, c + dc)));
+      return this.pick(fits.length ? fits : misses);
+    }
+
+    chooseShot() {
       if (this.difficulty === 'easy') return this.easyShot();
-      this.healerLead = this.healerLead.filter(([r, c]) => this.at(r, c) === UNKNOWN);
+      this.healerLead = this.healerLead.filter(([r, c]) => this.at(r, c) === UNKNOWN || this.at(r, c) === MISS);
       if (this.healerLead.length) {
         if (this.difficulty === 'normal') return this.pick(this.healerLead);
         const heat = this.heatmap();
