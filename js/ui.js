@@ -654,7 +654,9 @@
     const left = yourTurn ? state.shotsLeft : total;
     els.salvoShells.innerHTML = Array.from({ length: total }, (_, i) => `<span class="shell${i < left ? '' : ' spent'}"></span>`).join('');
     const enemyShots = state.enemy.salvoShots();
-    els.salvoText.textContent = yourTurn
+    els.salvoText.textContent = state.phase === 'over'
+      ? 'Game over.'
+      : yourTurn
       ? `${left} of ${total} shots left this turn. Enemy fires ${enemyShots} per turn.`
       : `You'll have ${total} shots next turn. Enemy fires ${enemyShots} per turn.`;
   }
