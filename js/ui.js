@@ -403,24 +403,33 @@
 
   function launch(view, r, c, done) {
     const id = gameId;
+    const aimed = view === enemy ? sharkAt(view, r, c) : null;
     Sound.whistle();
     spawnFx(view, r, c, 'incoming', SHELL_MS + 60);
     setTimeout(() => {
-      if (view === enemy) hitShark(view, r, c);
+      if (view === enemy) {
+        const shark = sharkAt(view, r, c) || (aimed?.isConnected && !aimed.classList.contains('popped') ? aimed : null);
+        if (shark) popShark(view, shark);
+      }
       if (id === gameId) done();
     }, SHELL_MS);
   }
 
   // Easter egg: a shell landing on a passing shark. Purely cosmetic.
-  function hitShark(view, r, c) {
-    const shark = view.water?.querySelector('.shark:not(.popped)');
-    if (!shark) return;
+  // Any overlap between the target cell and the shark's body or fin counts.
+  function sharkAt(view, r, c) {
+    if (!view.water) return null;
     const cell = view.cells[r][c].getBoundingClientRect();
+    return [...view.water.querySelectorAll('.shark:not(.popped)')].find((shark) =>
+      ['.shark-shadow', '.shark-fin'].some((sel) => {
+        const b = shark.querySelector(sel).getBoundingClientRect();
+        return b.left < cell.right && b.right > cell.left && b.top < cell.bottom && b.bottom > cell.top;
+      })
+    ) || null;
+  }
+
+  function popShark(view, shark) {
     const body = shark.querySelector('svg').getBoundingClientRect();
-    const x = cell.left + cell.width / 2;
-    const y = cell.top + cell.height / 2;
-    const padX = body.width * 0.12;
-    if (x < body.left + padX || x > body.right - padX || y < body.top - cell.height * 0.25 || y > body.bottom + cell.height * 0.25) return;
     shark.classList.add('popped');
     const board = view.el.getBoundingClientRect();
     const pop = div('shark-pop');
