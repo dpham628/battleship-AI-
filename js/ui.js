@@ -115,6 +115,8 @@
       sink: () => { noise(1.8, 'lowpass', 350, 0.9); tone('sine', 70, 25, 1.4, 0.6); },
       hiss: () => noise(1.3, 'highpass', 2200, 0.35, 0.5),
       repair: () => { tone('sine', 660, 880, 0.12, 0.12); tone('sine', 880, 1320, 0.16, 0.12, 0.12); },
+      pop: () => { noise(0.35, 'bandpass', 700, 0.8, 0.8); tone('square', 300, 1200, 0.12, 0.08); },
+      jingle: () => [784, 988, 1175, 1568].forEach((f, i) => tone('triangle', f, f, 0.18, 0.08, 0.25 + i * 0.11)),
     };
   })();
 
@@ -404,8 +406,69 @@
     Sound.whistle();
     spawnFx(view, r, c, 'incoming', SHELL_MS + 60);
     setTimeout(() => {
+      if (view === enemy) hitShark(view, r, c);
       if (id === gameId) done();
     }, SHELL_MS);
+  }
+
+  // Easter egg: a shell landing on a passing shark. Purely cosmetic.
+  function hitShark(view, r, c) {
+    const shark = view.water?.querySelector('.shark:not(.popped)');
+    if (!shark) return;
+    const cell = view.cells[r][c].getBoundingClientRect();
+    const body = shark.querySelector('svg').getBoundingClientRect();
+    const x = cell.left + cell.width / 2;
+    const y = cell.top + cell.height / 2;
+    const padX = body.width * 0.12;
+    if (x < body.left + padX || x > body.right - padX || y < body.top - cell.height * 0.25 || y > body.bottom + cell.height * 0.25) return;
+    shark.classList.add('popped');
+    const board = view.el.getBoundingClientRect();
+    const pop = div('shark-pop');
+    pop.style.left = `${body.left + body.width / 2 - board.left}px`;
+    pop.style.top = `${body.top + body.height / 2 - board.top}px`;
+    view.el.appendChild(pop);
+    setTimeout(() => pop.remove(), 900);
+    setTimeout(() => shark.remove(), 350);
+    Sound.pop();
+    Sound.jingle();
+    sushiRain();
+  }
+
+  const nigiri = (fish, stripe) =>
+    '<svg viewBox="0 0 60 40"><rect x="6" y="18" width="48" height="18" rx="9" fill="#fbfaf3" stroke="#d9d4c3"/>' +
+    `<path d="M3 20 Q8 6 30 6 Q52 6 57 20 Q52 26 30 25 Q8 26 3 20Z" fill="${fish}"/>` +
+    `<path d="M16 9 L22 23 M28 7 L32 24 M40 8 L42 23" stroke="${stripe}" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/></svg>`;
+  const SUSHI = [
+    nigiri('#ff8a5b', '#ffe0cf'),
+    nigiri('#d8364a', '#f27a86'),
+    nigiri('#ffd23f', '#fff1b0'),
+    '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="#1f3b2a"/><circle cx="20" cy="20" r="14" fill="#fbfaf3"/>' +
+      '<circle cx="20" cy="20" r="7" fill="#ff8a5b"/><circle cx="17" cy="18" r="2.6" fill="#6cc04a"/></svg>',
+    '<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="#1f3b2a"/><circle cx="20" cy="20" r="14" fill="#fbfaf3"/>' +
+      '<circle cx="20" cy="20" r="7" fill="#d8364a"/></svg>',
+    '<svg viewBox="0 0 60 30"><path d="M4 15 Q20 2 40 8 L56 2 L52 15 L56 28 L40 22 Q20 28 4 15Z" fill="#4aa3df" stroke="#1d6fa5" stroke-width="1.5"/>' +
+      '<circle cx="13" cy="13" r="2" fill="#0b2233"/></svg>',
+  ];
+  function sushiRain() {
+    document.querySelector('.sushi-rain')?.remove();
+    const rain = div('sushi-rain');
+    rain.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 46; i++) {
+      const p = document.createElement('span');
+      p.innerHTML = SUSHI[Math.floor(Math.random() * SUSHI.length)];
+      p.style.left = `${(Math.random() * 100).toFixed(1)}%`;
+      p.style.width = `${Math.round(30 + Math.random() * 34)}px`;
+      p.style.setProperty('--dur', `${(2.2 + Math.random() * 1.8).toFixed(2)}s`);
+      p.style.setProperty('--delay', `${(Math.random() * 1.4).toFixed(2)}s`);
+      p.style.setProperty('--spin', `${Math.round(Math.random() * 720 - 360)}deg`);
+      p.style.setProperty('--drift', `${Math.round(Math.random() * 120 - 60)}px`);
+      rain.appendChild(p);
+    }
+    const banner = div('sushi-banner');
+    banner.textContent = 'Shark sushi!';
+    rain.appendChild(banner);
+    document.body.appendChild(rain);
+    setTimeout(() => rain.remove(), 5600);
   }
 
   function impact(view, r, c, out) {

@@ -493,3 +493,34 @@ dialog .row { justify-content: center; }
 @keyframes shark-weave { from { translate: 0 -12%; rotate: -3deg; } to { translate: 0 12%; rotate: 3deg; } }
 @keyframes shark-tail { from { rotate: -14deg; } to { rotate: 14deg; } }
 @keyframes shark-foam { from { opacity: 0.25; } to { opacity: 0.55; } }
+
+/* Easter egg: shooting a shark */
+.shark.popped { animation-play-state: paused; opacity: 0; transition: opacity 0.3s; }
+.shark-pop {
+  position: absolute; z-index: 5; width: calc(var(--cell) * 2.4); aspect-ratio: 1; translate: -50% -50%;
+  pointer-events: none; border-radius: 50%;
+  background: radial-gradient(circle, #fff7d6 0 18%, #ff9ec7 30%, #ff5c8a 46%, transparent 64%);
+  animation: shark-pop 0.85s ease-out forwards;
+}
+.shark-pop::after {
+  content: ''; position: absolute; inset: 8%; border-radius: 50%; border: 3px dashed #ffd6e8;
+  animation: shark-pop-ring 0.85s ease-out forwards;
+}
+@keyframes shark-pop { 0% { scale: 0.2; opacity: 1; } 60% { opacity: 1; } 100% { scale: 1.4; opacity: 0; } }
+@keyframes shark-pop-ring { from { scale: 0.4; rotate: 0deg; } to { scale: 1.6; rotate: 90deg; } }
+.sushi-rain { position: fixed; inset: 0; z-index: 1000; pointer-events: none; overflow: hidden; }
+.sushi-rain span {
+  position: absolute; top: -70px; line-height: 0; filter: drop-shadow(0 3px 3px #0006);
+  animation: sushi-fall var(--dur) cubic-bezier(0.35, 0, 0.8, 1) var(--delay) forwards;
+}
+.sushi-rain svg { display: block; width: 100%; height: auto; }
+@keyframes sushi-fall {
+  from { translate: 0 0; rotate: 0deg; }
+  to { translate: var(--drift) calc(100vh + 120px); rotate: var(--spin); }
+}
+.sushi-banner {
+  position: absolute; left: 50%; top: 22%; translate: -50% 0; padding: 10px 22px; border-radius: 999px;
+  background: #ff5c8a; color: #fff; font-weight: 800; font-size: 1.6rem; letter-spacing: 0.04em;
+  box-shadow: 0 8px 24px #0007; animation: sushi-banner 2.6s ease-out forwards;
+}
+@keyframes sushi-banner { 0% { scale: 0.3; opacity: 0; } 15% { scale: 1.1; opacity: 1; } 25% { scale: 1; } 80% { opacity: 1; } 100% { opacity: 0; translate: -50% -20px; } }
